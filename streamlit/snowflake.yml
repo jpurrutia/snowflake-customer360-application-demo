@@ -1,0 +1,9 @@
+definition_version: 1
+
+streamlit:
+  name: customer_360_app
+  stage: streamlit
+  query_warehouse: COMPUTE_WH
+  main_file: app.py
+  title: "Customer 360 Analytics Platform"
+  pages_dir: null
