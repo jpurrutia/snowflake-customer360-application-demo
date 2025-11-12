@@ -1,0 +1,102 @@
+# ============================================================================
+# dbt Packages Configuration
+# ============================================================================
+# Purpose: Define external dbt packages to install
+# Installation: Run `dbt deps` to install packages
+# ============================================================================
+
+packages:
+  # dbt Utils - Essential macros and tests
+  # https://hub.getdbt.com/dbt-labs/dbt_utils/latest/
+  - package: dbt-labs/dbt_utils
+    version: 1.1.1
+
+  # dbt Expectations - Advanced data quality tests (optional)
+  # Uncomment if you want Great Expectations-style tests
+  # - package: calogica/dbt_expectations
+  #   version: 0.9.0
+
+  # dbt Audit Helper - Compare query results (useful for migrations)
+  # Uncomment if needed for auditing transformations
+  # - package: dbt-labs/audit_helper
+  #   version: 0.9.0
+
+  # Codegen - Generate boilerplate dbt code
+  # Uncomment if you want to auto-generate YAML and SQL
+  # - package: dbt-labs/codegen
+  #   version: 0.11.0
+
+# ============================================================================
+# Package Descriptions
+# ============================================================================
+#
+# dbt_utils:
+#   Essential package providing:
+#   - Test macros (accepted_range, expression_is_true, etc.)
+#   - SQL helper macros (surrogate_key, pivot, etc.)
+#   - Jinja helper macros (get_column_values, etc.)
+#   - Cross-database compatibility
+#
+# dbt_expectations (optional):
+#   Advanced data quality tests inspired by Great Expectations:
+#   - expect_column_values_to_be_between
+#   - expect_column_mean_to_be_between
+#   - expect_column_values_to_match_regex
+#   - expect_table_row_count_to_equal
+#   - Many more statistical and pattern-based tests
+#
+# audit_helper (optional):
+#   Tools for auditing dbt models:
+#   - compare_queries: Compare two SELECT statements
+#   - compare_relations: Compare two tables/views
+#   - compare_column_values: Detailed column comparison
+#   Useful for:
+#   - Migrating from legacy systems
+#   - Validating refactors
+#   - Ensuring consistency across environments
+#
+# codegen (optional):
+#   Auto-generate dbt code:
+#   - generate_source: Create source YAML from database
+#   - generate_base_model: Create staging model SQL
+#   - generate_model_yaml: Create model YAML documentation
+#   Saves time on boilerplate code
+#
+# ============================================================================
+
+# ============================================================================
+# Installation Instructions
+# ============================================================================
+#
+# 1. Install packages:
+#    dbt deps
+#
+# 2. Verify installation:
+#    ls dbt_packages/
+#    # Should see: dbt_utils/
+#
+# 3. Use package macros in models:
+#    {{ dbt_utils.surrogate_key(['customer_id', 'transaction_date']) }}
+#    {{ dbt_utils.date_spine(...) }}
+#
+# 4. Use package tests in YAML:
+#    tests:
+#      - dbt_utils.accepted_range:
+#          min_value: 0
+#          max_value: 100
+#
+# ============================================================================
+
+# ============================================================================
+# Package Updates
+# ============================================================================
+#
+# To update packages to latest versions:
+#   dbt deps --upgrade
+#
+# To check for package updates:
+#   # Visit https://hub.getdbt.com/ for latest versions
+#   # Update version numbers in this file
+#   # Run: dbt deps
+#
+# ============================================================================

@@ -1,0 +1,66 @@
+name: Deploy Streamlit to Snowflake
+
+# Trigger deployment on push to main branch when streamlit files change
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'streamlit/**'
+      - '.github/workflows/deploy-streamlit.yml'
+
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Snowflake CLI
+        run: |
+          pip install --upgrade pip
+          pip install snowflake-cli-labs
+
+      - name: Deploy Streamlit App to Snowflake
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+        run: |
+          cd streamlit
+          snow streamlit deploy \
+            --name customer_360_app \
+            --replace \
+            --connection default
+
+      - name: Get Streamlit App URL
+        if: success()
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          echo "Streamlit app deployed successfully!"
+          echo "Access your app at: https://${{ secrets.SNOWFLAKE_ACCOUNT }}.snowflakecomputing.com/streamlit/CUSTOMER_ANALYTICS.GOLD.customer_360_app"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Deployment failed. Check logs above for details."
+          echo "Common issues:"
+          echo "  - Check GitHub Secrets are configured correctly"
+          echo "  - Verify Snowflake credentials are valid"
+          echo "  - Ensure warehouse COMPUTE_WH exists"

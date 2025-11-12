@@ -1,0 +1,74 @@
+# ============================================================================
+# Gold Layer Sources Definition
+# ============================================================================
+# Purpose: Define Gold layer tables created outside of dbt (e.g., ML predictions)
+# Usage: Reference in models with {{ source('gold', 'table_name') }}
+# ============================================================================
+
+version: 2
+
+sources:
+  - name: gold
+    description: "Gold layer containing ML predictions and external enrichments"
+    database: CUSTOMER_ANALYTICS
+    schema: GOLD
+
+    tables:
+      # ======================================================================
+      # CHURN_PREDICTIONS
+      # ======================================================================
+      - name: churn_predictions
+        description: |
+          ML-generated churn predictions for all active customers.
+
+          **Source**: Snowflake Cortex ML (CHURN_MODEL)
+          **Row Count**: ~45-50K customers (those with ≥5 transactions)
+          **Refresh**: Generated via snowflake/ml/05_apply_predictions.sql
+          **Model**: Binary classification predicting customer churn
+
+          **Usage**: Joined to customer_360_profile for dashboard consumption
+
+          **Churn Risk Scoring**:
+          - **Low Risk (0-39)**: Active, engaged customers
+          - **Medium Risk (40-69)**: Showing early warning signs
+          - **High Risk (70-100)**: At risk of churning
+
+        columns:
+          - name: customer_id
+            description: "Customer identifier (links to dim_customer)"
+            tests:
+              - not_null
+              - unique
+
+          - name: prediction_result
+            description: "Raw prediction object from Cortex ML model"
+
+          - name: predicted_churn
+            description: "Binary churn prediction (TRUE/FALSE)"
+            tests:
+              - not_null
+
+          - name: churn_risk_score
+            description: "Churn probability as percentage (0-100)"
+            tests:
+              - not_null
+
+          - name: prediction_date
+            description: "Date predictions were generated"
+            tests:
+              - not_null
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Reference gold sources in models:
+#
+#   LEFT JOIN {{ source('gold', 'churn_predictions') }} pred
+#       ON customer.customer_id = pred.customer_id
+#
+# Test gold sources:
+#
+#   dbt test --select source:gold
+#
+# ============================================================================

@@ -1,0 +1,184 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: |
+      Cleaned and normalized customer data from Bronze layer.
+
+      **Purpose**:
+      - Normalize text fields (case, whitespace)
+      - Standardize email and state formats
+      - Preserve all source data for downstream use
+
+      **Transformations**:
+      - email: Converted to lowercase
+      - state: Converted to uppercase
+      - All text fields: Trimmed of whitespace
+      - No data filtering or exclusions
+
+      **Row Count**: 50,000 customers
+
+      **Downstream Models**:
+      - dim_customer (SCD Type 2 dimension)
+      - customer_360_profile (analytical mart)
+
+    config:
+      tags: ['staging', 'customers', 'silver']
+
+    columns:
+      # ======================================================================
+      # Primary Key
+      # ======================================================================
+      - name: customer_id
+        description: "Unique customer identifier (CUST00000001 format)"
+        tests:
+          - unique
+          - not_null
+
+      # ======================================================================
+      # Demographics
+      # ======================================================================
+      - name: first_name
+        description: "Customer first name (trimmed)"
+        tests:
+          - not_null
+
+      - name: last_name
+        description: "Customer last name (trimmed)"
+        tests:
+          - not_null
+
+      - name: email
+        description: "Customer email address (normalized to lowercase, trimmed)"
+        tests:
+          - not_null
+          - dbt_utils.not_empty_string
+
+      - name: age
+        description: "Customer age (22-75 range)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 100
+              inclusive: true
+
+      - name: state
+        description: "US state abbreviation (normalized to uppercase)"
+        tests:
+          - not_null
+          - dbt_utils.not_empty_string
+
+      - name: city
+        description: "City name (trimmed)"
+        tests:
+          - not_null
+
+      - name: employment_status
+        description: "Employment status category"
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'Employed'
+                - 'Self-Employed'
+                - 'Unemployed'
+                - 'Retired'
+                - 'Student'
+              config:
+                severity: warn  # Warn instead of error for unexpected values
+
+      # ======================================================================
+      # Account Details
+      # ======================================================================
+      - name: card_type
+        description: "Card type (Standard or Premium)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Standard', 'Premium']
+
+      - name: credit_limit
+        description: "Credit limit in USD ($5K-$50K range, multiples of $1K)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 5000
+              max_value: 50000
+              inclusive: true
+
+      - name: account_open_date
+        description: "Account opening date (2-5 years ago from generation)"
+        tests:
+          - not_null
+
+      - name: customer_segment
+        description: |
+          Customer behavioral segment:
+          - High-Value Travelers: High spend, frequent travel purchases
+          - Stable Mid-Spenders: Consistent moderate spending
+          - Budget-Conscious: Low spend, high frequency
+          - Declining: Decreasing spend over time
+          - New & Growing: Increasing spend, building relationship
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'High-Value Travelers'
+                - 'Stable Mid-Spenders'
+                - 'Budget-Conscious'
+                - 'Declining'
+                - 'New & Growing'
+
+      - name: decline_type
+        description: |
+          Decline pattern type (only populated for Declining segment):
+          - gradual: Linear 10% reduction per month after month 12
+          - sudden: 60% drop after month 16
+          - NULL for all other segments
+        tests:
+          - accepted_values:
+              values: ['gradual', 'sudden', null]
+
+      # ======================================================================
+      # Metadata
+      # ======================================================================
+      - name: ingestion_timestamp
+        description: "Timestamp when record was loaded from S3 to Bronze"
+        tests:
+          - not_null
+
+      - name: source_file
+        description: "S3 source file path for data lineage"
+        tests:
+          - not_null
+
+    # ========================================================================
+    # Model-Level Tests
+    # ========================================================================
+    tests:
+      # Ensure email addresses are unique (catch duplicates)
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - email
+          config:
+            severity: warn  # Warn instead of error for staging
+
+      # Ensure no unexpected NULLs in critical fields
+      - dbt_utils.expression_is_true:
+          expression: "first_name IS NOT NULL AND last_name IS NOT NULL AND email IS NOT NULL"
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Build this model:
+#   dbt run --select stg_customers
+#
+# Test this model:
+#   dbt test --select stg_customers
+#
+# Reference in downstream models:
+#   SELECT * FROM {{ ref('stg_customers') }}
+#
+# ============================================================================

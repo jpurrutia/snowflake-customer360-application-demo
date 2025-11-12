@@ -1,0 +1,316 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: |
+      Customer dimension table with Slowly Changing Dimension (SCD) Type 2 tracking.
+
+      **SCD Type 2 Strategy**:
+      - **Tracked Attributes** (history maintained):
+        - card_type: Product upgrades (Standard ↔ Premium)
+        - credit_limit: Credit limit changes
+
+      - **Type 1 Attributes** (overwrite, no history):
+        - Demographics: first_name, last_name, email, age, state, city
+        - Account info: employment_status, customer_segment, decline_type
+
+      **How SCD Type 2 Works**:
+      1. When card_type or credit_limit changes:
+         - Old record: valid_to set to yesterday, is_current = FALSE
+         - New record: Created with valid_from = today, is_current = TRUE
+      2. Each customer_id can have multiple rows (historical versions)
+      3. Exactly one row per customer has is_current = TRUE
+
+      **Querying Tips**:
+
+      ```sql
+      -- Get current state of all customers
+      SELECT * FROM {{ ref('dim_customer') }}
+      WHERE is_current = TRUE;
+
+      -- Get complete history for one customer
+      SELECT *
+      FROM {{ ref('dim_customer') }}
+      WHERE customer_id = 'CUST00000001'
+      ORDER BY valid_from;
+
+      -- Find customers who upgraded to Premium
+      SELECT customer_id, valid_from, card_type
+      FROM {{ ref('dim_customer') }}
+      WHERE card_type = 'Premium'
+        AND valid_from > account_open_date;  -- After initial account opening
+
+      -- Find credit limit increases
+      SELECT
+          customer_id,
+          credit_limit AS new_limit,
+          LAG(credit_limit) OVER (PARTITION BY customer_id ORDER BY valid_from) AS old_limit,
+          valid_from AS change_date
+      FROM {{ ref('dim_customer') }}
+      WHERE valid_to IS NOT NULL  -- Historical records only
+      ORDER BY customer_id, valid_from;
+      ```
+
+      **Row Count**: Initially 50,000 (one per customer), grows as changes occur
+
+    config:
+      tags: ['gold', 'dimension', 'scd_type_2', 'customer']
+
+    columns:
+      # ======================================================================
+      # Keys
+      # ======================================================================
+      - name: customer_key
+        description: |
+          **Surrogate key** - Unique identifier for each version of a customer.
+
+          - Generated using dbt_utils.generate_surrogate_key()
+          - Combines customer_id + timestamp for uniqueness
+          - Different for each historical version of same customer
+          - Use this as FK in fact tables for point-in-time accuracy
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_id
+        description: |
+          **Natural key** - Business identifier for the customer.
+
+          - Same value across all historical versions
+          - Not unique in this table (customer can have multiple rows)
+          - Use for querying customer history: WHERE customer_id = 'CUST...'
+        tests:
+          - not_null
+
+      # ======================================================================
+      # Demographics (SCD Type 1 - Overwrites, No History)
+      # ======================================================================
+      - name: first_name
+        description: "Customer first name (Type 1 - current value only)"
+        tests:
+          - not_null
+
+      - name: last_name
+        description: "Customer last name (Type 1 - current value only)"
+        tests:
+          - not_null
+
+      - name: email
+        description: "Customer email address (Type 1 - current value only, lowercase)"
+        tests:
+          - not_null
+
+      - name: age
+        description: "Customer age (Type 1 - current value only)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 100
+
+      - name: state
+        description: "US state abbreviation (Type 1 - current value only, uppercase)"
+        tests:
+          - not_null
+
+      - name: city
+        description: "City name (Type 1 - current value only)"
+        tests:
+          - not_null
+
+      - name: employment_status
+        description: "Employment status (Type 1 - current value only)"
+        tests:
+          - not_null
+
+      # ======================================================================
+      # Account Details (SCD Type 2 - History Tracked)
+      # ======================================================================
+      - name: card_type
+        description: |
+          **Card product type** - SCD Type 2 tracked attribute.
+
+          **Values**:
+          - Standard: Base card product
+          - Premium: Premium benefits card
+
+          **History Tracking**: When a customer upgrades from Standard to Premium
+          (or downgrades), a new row is created with:
+          - Old row: valid_to = date of change, is_current = FALSE
+          - New row: valid_from = date of change, is_current = TRUE
+
+          **Use Case**: Track product upgrade patterns, premium conversion rates
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Standard', 'Premium']
+
+      - name: credit_limit
+        description: |
+          **Credit limit in USD** - SCD Type 2 tracked attribute.
+
+          **Range**: $5,000 - $50,000 (multiples of $1,000)
+
+          **History Tracking**: When credit limit changes, a new row is created.
+          This allows analysis of:
+          - Credit limit increase/decrease trends
+          - Point-in-time credit availability
+          - Risk exposure over time
+
+          **Use Case**: Credit risk analysis, utilization tracking
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 5000
+              max_value: 50000
+
+      - name: account_open_date
+        description: |
+          **Account opening date** - Immutable attribute.
+
+          - Same across all versions of a customer
+          - Used as valid_from for initial record
+          - Type 1 (no history tracking)
+        tests:
+          - not_null
+
+      # ======================================================================
+      # Segmentation (SCD Type 1)
+      # ======================================================================
+      - name: customer_segment
+        description: |
+          **Customer behavioral segment** - Type 1 attribute.
+
+          **Segments**:
+          - High-Value Travelers: Premium spend, travel focus
+          - Stable Mid-Spenders: Consistent moderate spend
+          - Budget-Conscious: Low spend, high frequency
+          - Declining: Decreasing engagement
+          - New & Growing: Increasing spend trajectory
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'High-Value Travelers'
+                - 'Stable Mid-Spenders'
+                - 'Budget-Conscious'
+                - 'Declining'
+                - 'New & Growing'
+
+      - name: decline_type
+        description: |
+          **Decline pattern type** - Only for Declining segment.
+
+          **Values**:
+          - gradual: Linear 10% reduction/month
+          - sudden: Sharp 60% drop
+          - NULL: For all other segments
+        tests:
+          - accepted_values:
+              values: ['gradual', 'sudden', null]
+
+      # ======================================================================
+      # SCD Type 2 Metadata
+      # ======================================================================
+      - name: valid_from
+        description: |
+          **Effective start date** for this version of the customer.
+
+          - Initial load: Set to account_open_date
+          - Changes: Set to date of change
+          - Use in fact table joins for point-in-time accuracy:
+            ```sql
+            JOIN dim_customer d
+              ON f.customer_id = d.customer_id
+             AND f.transaction_date BETWEEN d.valid_from AND COALESCE(d.valid_to, '9999-12-31')
+            ```
+        tests:
+          - not_null
+
+      - name: valid_to
+        description: |
+          **Effective end date** for this version of the customer.
+
+          - Current records: NULL (still active)
+          - Historical records: Date when this version ended (day before next version)
+          - Query current state: WHERE valid_to IS NULL OR is_current = TRUE
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "valid_to IS NULL OR valid_to >= valid_from"
+              config:
+                where: "valid_to IS NOT NULL"
+
+      - name: is_current
+        description: |
+          **Current version flag** - Indicates if this is the active version.
+
+          - TRUE: Current/active version of customer
+          - FALSE: Historical version
+
+          **Constraint**: Each customer_id should have exactly ONE row with is_current = TRUE
+
+          **Usage**: Simplifies queries for current state:
+          ```sql
+          WHERE is_current = TRUE  -- Instead of WHERE valid_to IS NULL
+          ```
+        tests:
+          - not_null
+          - accepted_values:
+              values: [TRUE, FALSE]
+
+      # ======================================================================
+      # Audit Timestamps
+      # ======================================================================
+      - name: created_timestamp
+        description: "Timestamp when this row was created in the dimension table"
+        tests:
+          - not_null
+
+      - name: updated_timestamp
+        description: |
+          Timestamp when this row was last updated.
+
+          - Same as created_timestamp for new rows
+          - Updated when Type 1 attributes change
+          - Updated when row is expired (valid_to set)
+        tests:
+          - not_null
+
+    # ========================================================================
+    # Model-Level Tests
+    # ========================================================================
+    tests:
+      # Each customer must have exactly one current record
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*) FROM (
+              SELECT customer_id
+              FROM {{ ref('dim_customer') }}
+              GROUP BY customer_id
+              HAVING SUM(CASE WHEN is_current THEN 1 ELSE 0 END) != 1
+            )) = 0
+          config:
+            severity: error
+
+      # Historical records must have valid_to populated
+      - dbt_utils.expression_is_true:
+          expression: "NOT (is_current = FALSE AND valid_to IS NULL)"
+
+      # Current records must have NULL valid_to
+      - dbt_utils.expression_is_true:
+          expression: "NOT (is_current = TRUE AND valid_to IS NOT NULL)"
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Build dimension:
+#   dbt run --models dim_customer
+#
+# Test dimension:
+#   dbt test --models dim_customer
+#
+# Full refresh (rebuild from scratch):
+#   dbt run --models dim_customer --full-refresh
+#
+# ============================================================================

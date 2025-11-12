@@ -1,0 +1,426 @@
+version: 2
+
+models:
+  # ==========================================================================
+  # customer_360_profile
+  # ==========================================================================
+  - name: customer_360_profile
+    description: |
+      Denormalized Customer 360 view for dashboard and application consumption.
+
+      **Grain**: One row per customer (current state)
+      **Row Count**: ~50,000 customers
+      **Refresh**: Updated when any upstream mart refreshes
+
+      **Business Purpose**:
+      - Single source of truth for customer profiles
+      - Combines demographics, segmentation, and all hero metrics
+      - Optimized for fast application queries (denormalized)
+      - Ready for Streamlit dashboard, Cortex Analyst, and ML workflows
+
+      **Contains**:
+      - **Demographics**: Name, email, age, location, employment
+      - **Account**: Card type, credit limit, account age
+      - **Segmentation**: Behavioral segment with rolling 90-day metrics
+      - **Hero Metrics**: LTV, ATV, MoM spend change
+      - **Activity**: Recency status, days since last transaction
+      - **Category Preferences**: Travel vs necessities spending
+      - **Campaign Flags**: Eligibility for targeted campaigns
+      - **Churn Risk**: Placeholder for ML model scores (Prompt 4.x)
+
+      **Usage Example**:
+      ```sql
+      -- Single customer lookup
+      SELECT *
+      FROM {{ ref('customer_360_profile') }}
+      WHERE customer_id = 'CUST00000001';
+
+      -- High-value travelers dashboard
+      SELECT
+          customer_id,
+          full_name,
+          lifetime_value,
+          avg_transaction_value,
+          travel_spend_pct,
+          days_since_last_transaction
+      FROM {{ ref('customer_360_profile') }}
+      WHERE customer_segment = 'High-Value Travelers'
+      ORDER BY lifetime_value DESC
+      LIMIT 100;
+
+      -- Churn risk dashboard (Declining segment)
+      SELECT
+          customer_id,
+          full_name,
+          customer_segment,
+          lifetime_value,
+          spend_change_pct,
+          days_since_last_transaction,
+          recency_status
+      FROM {{ ref('customer_360_profile') }}
+      WHERE customer_segment = 'Declining'
+      ORDER BY spend_change_pct ASC;
+
+      -- Segment summary for executives
+      SELECT
+          customer_segment,
+          COUNT(*) AS customer_count,
+          AVG(lifetime_value) AS avg_ltv,
+          AVG(avg_transaction_value) AS avg_atv,
+          AVG(spend_change_pct) AS avg_mom_change
+      FROM {{ ref('customer_360_profile') }}
+      GROUP BY customer_segment
+      ORDER BY avg_ltv DESC;
+      ```
+
+    config:
+      tags: ['gold', 'mart', 'customer_360']
+
+    columns:
+      # Identifiers
+      - name: customer_id
+        description: "Customer identifier (natural key)"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_key
+        description: "Customer surrogate key (FK to dim_customer)"
+        tests:
+          - not_null
+
+      # Demographics
+      - name: full_name
+        description: "Full name (first_name + ' ' + last_name)"
+        tests:
+          - not_null
+
+      - name: first_name
+        description: "Customer first name"
+        tests:
+          - not_null
+
+      - name: last_name
+        description: "Customer last name"
+        tests:
+          - not_null
+
+      - name: email
+        description: "Customer email address"
+        tests:
+          - not_null
+
+      - name: age
+        description: "Customer age in years"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 18
+              max_value: 100
+
+      - name: state
+        description: "Customer state (2-letter code)"
+        tests:
+          - not_null
+
+      - name: city
+        description: "Customer city"
+        tests:
+          - not_null
+
+      - name: employment_status
+        description: "Employment status (Full-Time, Part-Time, Self-Employed, etc.)"
+        tests:
+          - not_null
+
+      # Account details
+      - name: card_type
+        description: "Card type (Standard, Premium)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Standard', 'Premium']
+
+      - name: credit_limit
+        description: "Credit limit in dollars"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 5000
+              max_value: 50000
+
+      - name: account_open_date
+        description: "Date account was opened"
+        tests:
+          - not_null
+
+      - name: account_age_days
+        description: "Days since account opening"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Segmentation
+      - name: customer_segment
+        description: |
+          Behavioral segment (5 segments).
+
+          Values:
+          - High-Value Travelers
+          - Declining
+          - New & Growing
+          - Budget-Conscious
+          - Stable Mid-Spenders
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['High-Value Travelers', 'Declining', 'New & Growing', 'Budget-Conscious', 'Stable Mid-Spenders']
+
+      - name: segment_assigned_date
+        description: "Date when segment was assigned"
+        tests:
+          - not_null
+
+      - name: tenure_months
+        description: "Customer tenure in months (from first transaction)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Lifetime metrics
+      - name: lifetime_value
+        description: "Total lifetime spending (approved transactions)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: total_transactions
+        description: "Total number of approved transactions"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: customer_age_days
+        description: "Customer lifetime in days (first to last transaction)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: avg_spend_per_day
+        description: "Average daily spending rate (LTV / age)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Average transaction value
+      - name: avg_transaction_value
+        description: "Average transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: transaction_value_stddev
+        description: "Standard deviation of transaction amounts"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: min_transaction_value
+        description: "Minimum transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: max_transaction_value
+        description: "Maximum transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: median_transaction_value
+        description: "Median transaction amount (50th percentile)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spending_consistency
+        description: |
+          Spending consistency category.
+
+          Values: No Transactions, Consistent, Moderate, Variable
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['No Transactions', 'Consistent', 'Moderate', 'Variable']
+
+      # Recent activity (rolling 90-day window)
+      - name: spend_last_90_days
+        description: "Total spending in last 90 days"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spend_prior_90_days
+        description: "Total spending in prior 90 days (days 91-180)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spend_change_pct
+        description: "Percentage change from prior 90 days to last 90 days"
+        tests:
+          - not_null
+
+      - name: avg_monthly_spend
+        description: "Average monthly spend (last 90 days / 3)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Activity timeline
+      - name: first_transaction_date
+        description: "Date of first transaction"
+
+      - name: last_transaction_date
+        description: "Date of most recent transaction"
+
+      - name: days_since_last_transaction
+        description: "Days since last transaction (recency)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: recency_status
+        description: |
+          Recency status category.
+
+          Values:
+          - Active (30 days): Last transaction within 30 days
+          - Recent (60 days): Last transaction within 60 days
+          - At Risk (90 days): Last transaction within 90 days
+          - Inactive (90+ days): No transaction in 90+ days
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Active (30 days)', 'Recent (60 days)', 'At Risk (90 days)', 'Inactive (90+ days)']
+
+      # Category preferences
+      - name: travel_spend_pct
+        description: "Percentage of spending on travel categories (Travel, Airlines, Hotels)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100 OR travel_spend_pct IS NULL"
+
+      - name: necessities_spend_pct
+        description: "Percentage of spending on necessities (Grocery, Gas, Utilities)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100 OR necessities_spend_pct IS NULL"
+
+      - name: spending_profile
+        description: |
+          Spending profile category.
+
+          Values:
+          - Travel-Focused: Travel spend >= 25%
+          - Necessity-Focused: Necessities spend >= 60%
+          - Balanced: Neither category dominant
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Travel-Focused', 'Necessity-Focused', 'Balanced']
+
+      # Future: Credit utilization (placeholder)
+      - name: credit_utilization_pct
+        description: "Credit utilization percentage (placeholder - will calculate in future iteration)"
+
+      # Churn risk (placeholder for ML iteration)
+      - name: churn_risk_score
+        description: |
+          Churn risk score from ML model (placeholder).
+
+          Will be populated in Prompt 4.x (Cortex ML iteration).
+
+          Expected range: 0-100 (higher = greater churn risk)
+
+      - name: churn_risk_category
+        description: |
+          Churn risk category (placeholder).
+
+          Expected values: Low, Medium, High, Very High
+
+      # Campaign eligibility flags
+      - name: eligible_for_retention_campaign
+        description: "Flag: TRUE if customer is in Declining segment (churn risk)"
+        tests:
+          - not_null
+
+      - name: eligible_for_onboarding_campaign
+        description: "Flag: TRUE if customer is in New & Growing segment"
+        tests:
+          - not_null
+
+      - name: eligible_for_premium_campaign
+        description: "Flag: TRUE if customer is in High-Value Travelers segment"
+        tests:
+          - not_null
+
+      # Metadata
+      - name: profile_updated_date
+        description: "Date when profile was last updated"
+        tests:
+          - not_null
+
+    # Model-level tests
+    tests:
+      # All required fields present
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('customer_360_profile') }}
+             WHERE full_name IS NULL
+                OR email IS NULL
+                OR customer_segment IS NULL
+                OR lifetime_value IS NULL
+                OR avg_transaction_value IS NULL
+            ) = 0
+          config:
+            severity: error
+
+      # Churn risk score is NULL (placeholder for ML iteration)
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('customer_360_profile') }}
+             WHERE churn_risk_score IS NOT NULL
+            ) = 0
+          config:
+            severity: warn
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Build customer 360 profile:
+#   dbt run --models customer_360_profile
+#
+# Test customer 360 profile:
+#   dbt test --models customer_360_profile
+#
+# Query single customer:
+#   SELECT * FROM customer_360_profile WHERE customer_id = 'CUST00000001';
+#
+# ============================================================================

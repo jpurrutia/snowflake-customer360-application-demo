@@ -1,0 +1,419 @@
+version: 2
+
+models:
+  # ==========================================================================
+  # metric_customer_ltv
+  # ==========================================================================
+  - name: metric_customer_ltv
+    description: |
+      Customer Lifetime Value (LTV) metric - total spending from account opening to present.
+
+      **Grain**: One row per customer (current state)
+      **Row Count**: ~50,000 customers
+      **Refresh**: Updated when fact table refreshes
+
+      **Business Definition**:
+      - **Lifetime Value (LTV)**: SUM of all approved transaction amounts
+      - Primary metric for customer value analysis
+      - Used for segmentation and campaign prioritization
+      - Excludes declined transactions
+
+      **Calculation**:
+      ```sql
+      lifetime_value = SUM(transaction_amount) WHERE status = 'approved'
+      ```
+
+      **Usage Example**:
+      ```sql
+      -- Top 100 customers by LTV
+      SELECT
+          customer_id,
+          customer_segment,
+          lifetime_value,
+          total_transactions,
+          avg_spend_per_day
+      FROM {{ ref('metric_customer_ltv') }}
+      ORDER BY lifetime_value DESC
+      LIMIT 100;
+
+      -- Average LTV by segment
+      SELECT
+          customer_segment,
+          COUNT(*) AS customer_count,
+          AVG(lifetime_value) AS avg_ltv,
+          SUM(lifetime_value) AS total_segment_value
+      FROM {{ ref('metric_customer_ltv') }}
+      GROUP BY customer_segment
+      ORDER BY total_segment_value DESC;
+      ```
+
+    config:
+      tags: ['gold', 'mart', 'metrics', 'ltv']
+
+    columns:
+      - name: customer_id
+        description: "Customer identifier (natural key)"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_key
+        description: "Customer surrogate key (FK to dim_customer)"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_key
+              config:
+                where: "is_current = TRUE"
+
+      - name: customer_segment
+        description: "Behavioral segment assignment"
+
+      - name: lifetime_value
+        description: |
+          Total spending all-time (approved transactions only).
+
+          **Formula**: SUM(transaction_amount) WHERE status = 'approved'
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: total_transactions
+        description: "Total number of approved transactions"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: first_transaction_date
+        description: "Date of first transaction (account activation)"
+
+      - name: last_transaction_date
+        description: "Date of most recent transaction"
+
+      - name: customer_age_days
+        description: |
+          Customer lifetime in days (first to last transaction).
+
+          **Formula**: DATEDIFF('day', first_transaction_date, last_transaction_date)
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: avg_spend_per_day
+        description: |
+          Average daily spending rate.
+
+          **Formula**: lifetime_value / customer_age_days
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: metric_calculated_date
+        description: "Date when metric was calculated"
+        tests:
+          - not_null
+
+  # ==========================================================================
+  # metric_mom_spend_change
+  # ==========================================================================
+  - name: metric_mom_spend_change
+    description: |
+      Month-over-Month (MoM) spend change percentage for trend analysis.
+
+      **Grain**: One row per customer per month
+      **Row Count**: ~50,000 customers × ~18 months = ~900,000 rows
+      **Refresh**: Updated when fact table refreshes
+
+      **Business Definition**:
+      - **MoM Change %**: ((Current Month - Prior Month) / Prior Month) × 100
+      - Positive = spending increased
+      - Negative = spending decreased
+      - NULL = first month (no prior period for comparison)
+
+      **Calculation**:
+      ```sql
+      mom_change_pct = ((monthly_spend - prior_month_spend) / prior_month_spend) * 100
+      ```
+
+      **Usage Example**:
+      ```sql
+      -- Latest month's MoM change by segment
+      WITH latest_month AS (
+          SELECT MAX(month) AS max_month
+          FROM {{ ref('metric_mom_spend_change') }}
+      )
+      SELECT
+          seg.customer_segment,
+          AVG(m.mom_change_pct) AS avg_mom_change,
+          COUNT(*) AS customer_count
+      FROM {{ ref('metric_mom_spend_change') }} m
+      JOIN {{ ref('customer_segments') }} seg ON m.customer_id = seg.customer_id
+      CROSS JOIN latest_month
+      WHERE m.month = latest_month.max_month
+        AND m.mom_change_pct IS NOT NULL
+      GROUP BY seg.customer_segment;
+
+      -- Customers with biggest MoM decline (churn risk)
+      SELECT
+          customer_id,
+          month,
+          monthly_spend,
+          prior_month_spend,
+          mom_change_pct,
+          mom_trend_category
+      FROM {{ ref('metric_mom_spend_change') }}
+      WHERE month = DATE_TRUNC('month', CURRENT_DATE() - INTERVAL '1 month')
+        AND mom_change_pct < -30
+      ORDER BY mom_change_pct ASC
+      LIMIT 100;
+      ```
+
+    config:
+      tags: ['gold', 'mart', 'metrics', 'mom']
+
+    columns:
+      - name: customer_id
+        description: "Customer identifier"
+        tests:
+          - not_null
+
+      - name: month
+        description: "Month (first day of month, e.g., 2024-01-01)"
+        tests:
+          - not_null
+
+      - name: monthly_spend
+        description: |
+          Total spending for the month (approved transactions).
+
+          **Formula**: SUM(transaction_amount) for the calendar month
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: prior_month_spend
+        description: |
+          Spending in prior month for comparison.
+
+          NULL for first month of customer activity.
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0 OR prior_month_spend IS NULL"
+
+      - name: mom_change_pct
+        description: |
+          Month-over-month spending change percentage.
+
+          **Formula**: ((monthly_spend - prior_month_spend) / prior_month_spend) * 100
+
+          **Interpretation**:
+          - NULL: First month (no prior period)
+          - > 0: Spending increased
+          - < 0: Spending decreased
+          - = 0: Spending unchanged
+
+      - name: month_number
+        description: "Sequential month number for each customer (1 = first month)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: mom_trend_category
+        description: |
+          Categorical classification of MoM trend.
+
+          Values:
+          - First Month: NULL mom_change_pct
+          - High Growth: > 50%
+          - Growth: 0% to 50%
+          - Flat: 0%
+          - Decline: -30% to 0%
+          - High Decline: < -30%
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['First Month', 'High Growth', 'Growth', 'Flat', 'Decline', 'High Decline']
+
+      - name: metric_calculated_date
+        description: "Date when metric was calculated"
+        tests:
+          - not_null
+
+    # Model-level tests
+    tests:
+      # First month should have NULL prior_month_spend
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('metric_mom_spend_change') }}
+             WHERE month_number = 1
+               AND prior_month_spend IS NOT NULL
+            ) = 0
+          config:
+            severity: error
+
+  # ==========================================================================
+  # metric_avg_transaction_value
+  # ==========================================================================
+  - name: metric_avg_transaction_value
+    description: |
+      Average Transaction Value (ATV) metric - average spending per transaction.
+
+      **Grain**: One row per customer (current state)
+      **Row Count**: ~50,000 customers
+      **Refresh**: Updated when fact table refreshes
+
+      **Business Definition**:
+      - **ATV**: AVG(transaction_amount) across all approved transactions
+      - Standard deviation shows spending consistency
+      - Min/Max show transaction range
+      - Used for customer value analysis and fraud detection
+
+      **Calculation**:
+      ```sql
+      avg_transaction_value = AVG(transaction_amount) WHERE status = 'approved'
+      ```
+
+      **Usage Example**:
+      ```sql
+      -- Customers with highest ATV
+      SELECT
+          customer_id,
+          customer_segment,
+          avg_transaction_value,
+          transaction_value_stddev,
+          spending_consistency
+      FROM {{ ref('metric_avg_transaction_value') }}
+      ORDER BY avg_transaction_value DESC
+      LIMIT 100;
+
+      -- ATV by segment and consistency
+      SELECT
+          customer_segment,
+          spending_consistency,
+          COUNT(*) AS customer_count,
+          AVG(avg_transaction_value) AS avg_atv
+      FROM {{ ref('metric_avg_transaction_value') }}
+      GROUP BY customer_segment, spending_consistency
+      ORDER BY avg_atv DESC;
+      ```
+
+    config:
+      tags: ['gold', 'mart', 'metrics', 'atv']
+
+    columns:
+      - name: customer_id
+        description: "Customer identifier (natural key)"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_key
+        description: "Customer surrogate key (FK to dim_customer)"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_key
+              config:
+                where: "is_current = TRUE"
+
+      - name: customer_segment
+        description: "Behavioral segment assignment"
+
+      - name: avg_transaction_value
+        description: |
+          Average transaction amount (approved transactions).
+
+          **Formula**: AVG(transaction_amount) WHERE status = 'approved'
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: transaction_value_stddev
+        description: |
+          Standard deviation of transaction amounts.
+
+          **Interpretation**:
+          - Low (<50): Consistent spending
+          - Medium (50-200): Moderate variability
+          - High (>200): Variable spending
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: min_transaction_value
+        description: "Minimum transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: max_transaction_value
+        description: "Maximum transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: transaction_count
+        description: "Total number of approved transactions (for context)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: median_transaction_value
+        description: |
+          Median transaction amount (50th percentile).
+
+          Less sensitive to outliers than average.
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spending_consistency
+        description: |
+          Categorical classification of spending consistency.
+
+          Based on standard deviation:
+          - No Transactions: 0 transactions
+          - Consistent: StdDev < 50
+          - Moderate: StdDev 50-200
+          - Variable: StdDev > 200
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['No Transactions', 'Consistent', 'Moderate', 'Variable']
+
+      - name: metric_calculated_date
+        description: "Date when metric was calculated"
+        tests:
+          - not_null
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Build all marketing metrics:
+#   dbt run --models marts.marketing
+#
+# Test all marketing metrics:
+#   dbt test --models marts.marketing
+#
+# Query LTV by segment:
+#   SELECT customer_segment, AVG(lifetime_value)
+#   FROM metric_customer_ltv
+#   GROUP BY customer_segment;
+#
+# ============================================================================

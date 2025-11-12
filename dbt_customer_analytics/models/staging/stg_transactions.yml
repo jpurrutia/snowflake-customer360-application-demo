@@ -1,0 +1,210 @@
+version: 2
+
+models:
+  - name: stg_transactions
+    description: |
+      Cleaned and deduplicated transaction data from Bronze layer.
+
+      **Purpose**:
+      - Deduplicate transactions (in case of reload scenarios)
+      - Normalize text fields (merchant names, categories)
+      - Handle NULL merchant categories with default value
+      - Provide clean foundation for fact tables
+
+      **Materialization**: Incremental table
+      - **unique_key**: transaction_id
+      - **Incremental logic**: Process only records with ingestion_timestamp > last run
+      - **Performance**: Avoids full table scan on 13.5M rows
+
+      **Transformations**:
+      - merchant_category: Defaulted to 'Uncategorized' if NULL
+      - merchant_name: Trimmed of whitespace
+      - Deduplication: ROW_NUMBER() OVER (PARTITION BY transaction_id)
+
+      **Row Count**: ~13.5 million transactions
+
+      **Downstream Models**:
+      - fct_transactions (fact table)
+      - customer_transaction_summary (aggregated)
+      - customer_360_profile (metrics)
+
+    config:
+      tags: ['staging', 'transactions', 'silver', 'incremental']
+
+    columns:
+      # ======================================================================
+      # Primary Key
+      # ======================================================================
+      - name: transaction_id
+        description: "Unique transaction identifier (TXN00000000001 format)"
+        tests:
+          - unique
+          - not_null
+
+      # ======================================================================
+      # Foreign Key
+      # ======================================================================
+      - name: customer_id
+        description: "References stg_customers.customer_id"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_customers')
+              field: customer_id
+              config:
+                severity: error
+                error_if: ">100"  # Allow some orphans but flag if > 100
+
+      # ======================================================================
+      # Transaction Details
+      # ======================================================================
+      - name: transaction_date
+        description: "Transaction timestamp"
+        tests:
+          - not_null
+
+      - name: transaction_amount
+        description: "Transaction amount in USD (must be positive)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+              config:
+                severity: error
+
+      - name: merchant_name
+        description: "Merchant identifier (trimmed)"
+        tests:
+          - not_null
+
+      - name: merchant_category
+        description: |
+          Merchant category (defaulted to 'Uncategorized' if NULL in source):
+          - Travel
+          - Dining
+          - Retail
+          - Entertainment
+          - Grocery
+          - Gas
+          - Healthcare
+          - Utilities
+          - Hotels
+          - Airlines
+          - Uncategorized (default for NULLs)
+        tests:
+          - not_null  # Should never be NULL due to COALESCE
+          - accepted_values:
+              values:
+                - 'Travel'
+                - 'Dining'
+                - 'Retail'
+                - 'Entertainment'
+                - 'Grocery'
+                - 'Gas'
+                - 'Healthcare'
+                - 'Utilities'
+                - 'Hotels'
+                - 'Airlines'
+                - 'Uncategorized'
+              config:
+                severity: warn  # Warn if unexpected category
+
+      - name: channel
+        description: "Transaction channel"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Online', 'In-Store', 'Mobile']
+
+      - name: status
+        description: "Transaction status (~97% approved, ~3% declined)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['approved', 'declined']
+
+      # ======================================================================
+      # Metadata
+      # ======================================================================
+      - name: ingestion_timestamp
+        description: |
+          Timestamp when record was loaded from S3 to Bronze.
+
+          **Used for incremental processing**: Only records with
+          ingestion_timestamp > last run are processed.
+        tests:
+          - not_null
+
+      - name: source_file
+        description: "S3 source file path for data lineage"
+        tests:
+          - not_null
+
+    # ========================================================================
+    # Model-Level Tests
+    # ========================================================================
+    tests:
+      # Ensure approved transactions dominate (~97%)
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*) FROM {{ ref('stg_transactions') }} WHERE status = 'approved')::FLOAT
+            / (SELECT COUNT(*) FROM {{ ref('stg_transactions') }})
+            BETWEEN 0.90 AND 0.99
+          config:
+            severity: warn
+
+      # Ensure no future transaction dates
+      - dbt_utils.expression_is_true:
+          expression: "transaction_date <= CURRENT_TIMESTAMP()"
+          config:
+            severity: error
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Initial full load:
+#   dbt run --select stg_transactions --full-refresh
+#
+# Incremental load (only new data):
+#   dbt run --select stg_transactions
+#
+# Test this model:
+#   dbt test --select stg_transactions
+#
+# Reference in downstream models:
+#   SELECT * FROM {{ ref('stg_transactions') }}
+#
+# Check row count:
+#   SELECT COUNT(*) FROM {{ ref('stg_transactions') }}
+#   -- Expected: ~13.5M
+#
+# ============================================================================
+
+# ============================================================================
+# Incremental Strategy Notes
+# ============================================================================
+#
+# **Why Incremental?**
+# - 13.5M rows: Full refresh would be slow (2-5 minutes)
+# - Incremental runs process only new data (seconds)
+# - Production efficiency: Only load new transactions
+#
+# **How It Works**:
+# 1. On first run: Full table created (all data)
+# 2. On subsequent runs: Only process records where:
+#    ingestion_timestamp > MAX(ingestion_timestamp) FROM current table
+# 3. Upserts based on unique_key (transaction_id)
+# 4. If transaction_id already exists, row is updated
+#
+# **When to Full Refresh**:
+# - Schema changes (column added/removed)
+# - Logic changes (different deduplication)
+# - Data quality issues (need to reprocess all)
+# - Command: dbt run --select stg_transactions --full-refresh
+#
+# **Performance**:
+# - Full refresh: ~2-5 minutes on SMALL warehouse
+# - Incremental: ~10-30 seconds (depending on new data volume)
+#
+# ============================================================================

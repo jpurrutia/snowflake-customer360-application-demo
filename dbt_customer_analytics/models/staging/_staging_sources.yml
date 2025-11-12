@@ -1,0 +1,242 @@
+# ============================================================================
+# Bronze Layer Sources Definition
+# ============================================================================
+# Purpose: Define Bronze layer tables as dbt sources
+# Usage: Reference in models with {{ source('bronze', 'table_name') }}
+# ============================================================================
+
+version: 2
+
+sources:
+  - name: bronze
+    description: "Bronze layer containing raw data loaded from S3"
+    database: CUSTOMER_ANALYTICS
+    schema: BRONZE
+
+    # Freshness checks (optional - uncomment if you want to monitor data freshness)
+    # freshness:
+    #   warn_after: {count: 24, period: hour}
+    #   error_after: {count: 48, period: hour}
+
+    tables:
+      # ======================================================================
+      # BRONZE_CUSTOMERS
+      # ======================================================================
+      - name: bronze_customers
+        description: |
+          Raw customer data loaded from S3.
+
+          **Source**: S3 staged customer CSV files
+          **Row Count**: 50,000 customers
+          **Load Method**: COPY INTO bulk load
+          **Refresh**: One-time historical load
+
+          **Quality Notes**:
+          - All customer_ids are unique
+          - No NULL customer_ids
+          - Email addresses may not be validated
+          - State codes may vary in case (normalized in staging)
+
+        # Source-level tests
+        tests:
+          - dbt_utils.recency:
+              datepart: day
+              field: ingestion_timestamp
+              interval: 7
+              config:
+                severity: warn
+
+        columns:
+          - name: customer_id
+            description: "Unique customer identifier (CUST00000001 format)"
+            tests:
+              - not_null
+              - unique
+
+          - name: first_name
+            description: "Customer first name"
+
+          - name: last_name
+            description: "Customer last name"
+
+          - name: email
+            description: "Customer email address (may vary in case)"
+            tests:
+              - not_null
+
+          - name: age
+            description: "Customer age (22-75 range)"
+            tests:
+              - not_null
+
+          - name: state
+            description: "US state abbreviation (may vary in case)"
+            tests:
+              - not_null
+
+          - name: city
+            description: "City name"
+
+          - name: employment_status
+            description: "Employment status category"
+
+          - name: card_type
+            description: "Card type (Standard or Premium)"
+            tests:
+              - accepted_values:
+                  values: ['Standard', 'Premium']
+
+          - name: credit_limit
+            description: "Credit limit in USD ($5K-$50K range)"
+            tests:
+              - not_null
+
+          - name: account_open_date
+            description: "Account opening date (2-5 years ago)"
+            tests:
+              - not_null
+
+          - name: customer_segment
+            description: "Customer behavioral segment"
+            tests:
+              - not_null
+              - accepted_values:
+                  values:
+                    - 'High-Value Travelers'
+                    - 'Stable Mid-Spenders'
+                    - 'Budget-Conscious'
+                    - 'Declining'
+                    - 'New & Growing'
+
+          - name: decline_type
+            description: "Decline pattern type (only for Declining segment)"
+            tests:
+              - accepted_values:
+                  values: ['gradual', 'sudden', null]
+
+          - name: ingestion_timestamp
+            description: "Timestamp when record was loaded into Snowflake"
+            tests:
+              - not_null
+
+          - name: source_file
+            description: "S3 source file path for data lineage"
+            tests:
+              - not_null
+
+          - name: _metadata_file_row_number
+            description: "Row number in source file for debugging"
+
+      # ======================================================================
+      # BRONZE_TRANSACTIONS
+      # ======================================================================
+      - name: bronze_transactions
+        description: |
+          Raw transaction data loaded from S3.
+
+          **Source**: S3 staged transaction CSV files (GZIP compressed)
+          **Row Count**: ~13.5 million transactions
+          **Load Method**: COPY INTO bulk load
+          **Refresh**: One-time historical load (18 months)
+
+          **Quality Notes**:
+          - All transaction_ids should be unique
+          - All customer_ids should reference bronze_customers
+          - Transaction dates span ~18 months
+          - Amounts are positive (> $0)
+          - Status distribution: ~97% approved, ~3% declined
+
+        # Source-level tests
+        tests:
+          - dbt_utils.recency:
+              datepart: day
+              field: ingestion_timestamp
+              interval: 7
+              config:
+                severity: warn
+
+        columns:
+          - name: transaction_id
+            description: "Unique transaction identifier (TXN00000000001 format)"
+            tests:
+              - not_null
+              # Note: Uniqueness test on 13.5M rows is expensive - test in staging instead
+
+          - name: customer_id
+            description: "References bronze_customers.customer_id"
+            tests:
+              - not_null
+              # Note: Relationship test on 13.5M rows is expensive - test in staging instead
+
+          - name: transaction_date
+            description: "Transaction timestamp"
+            tests:
+              - not_null
+
+          - name: transaction_amount
+            description: "Transaction amount in USD (positive values)"
+            tests:
+              - not_null
+
+          - name: merchant_name
+            description: "Merchant identifier"
+
+          - name: merchant_category
+            description: |
+              Merchant category:
+              - Travel, Dining, Hotels, Airlines (High-Value Travelers)
+              - Grocery, Gas, Utilities (Budget-Conscious)
+              - Retail, Dining, Entertainment, etc. (Other segments)
+
+          - name: channel
+            description: "Transaction channel"
+            tests:
+              - accepted_values:
+                  values: ['Online', 'In-Store', 'Mobile']
+                  config:
+                    severity: warn  # Warn instead of error for Bronze
+
+          - name: status
+            description: "Transaction status (~97% approved, ~3% declined)"
+            tests:
+              - accepted_values:
+                  values: ['approved', 'declined']
+                  config:
+                    severity: warn
+
+          - name: ingestion_timestamp
+            description: "Timestamp when record was loaded into Snowflake"
+            tests:
+              - not_null
+
+          - name: source_file
+            description: "S3 source file path for data lineage"
+            tests:
+              - not_null
+
+          - name: _metadata_file_row_number
+            description: "Row number in source file for debugging"
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Reference sources in models:
+#
+#   SELECT * FROM {{ source('bronze', 'bronze_customers') }}
+#   SELECT * FROM {{ source('bronze', 'bronze_transactions') }}
+#
+# Test sources:
+#
+#   dbt test --select source:bronze
+#
+# Generate source documentation:
+#
+#   dbt docs generate
+#   dbt docs serve
+#
+# Check source freshness:
+#
+#   dbt source freshness
+#
+# ============================================================================

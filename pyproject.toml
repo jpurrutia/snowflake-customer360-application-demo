@@ -1,0 +1,55 @@
+[project]
+name = "snowflake-customer-analytics"
+version = "0.1.0"
+description = "Customer 360 Analytics Platform on Snowflake"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "snowflake-connector-python[pandas]>=3.0.0",
+    "dbt-snowflake>=1.7.0",
+    "faker>=20.0.0",
+    "pandas>=2.0.0",
+    "boto3>=1.28.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "ipython>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["data_generation"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--cov=data_generation",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # Line too long (handled by black)

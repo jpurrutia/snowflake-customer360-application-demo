@@ -1,0 +1,331 @@
+version: 2
+
+models:
+  # ==========================================================================
+  # dim_date
+  # ==========================================================================
+  - name: dim_date
+    description: |
+      Date dimension for time-based transaction analysis.
+
+      **Grain**: One row per calendar day
+      **Coverage**: Transaction date range (~18 months) + 30 day buffer
+      **Row Count**: ~580 days
+
+      **Usage Example**:
+      ```sql
+      -- Monthly sales trend
+      SELECT
+          d.year_month,
+          SUM(f.transaction_amount) AS total_sales
+      FROM fct_transactions f
+      JOIN dim_date d ON f.date_key = d.date_key
+      GROUP BY d.year_month
+      ORDER BY d.year_month;
+      ```
+
+    config:
+      tags: ['gold', 'dimension', 'date']
+
+    columns:
+      - name: date_key
+        description: "Surrogate key in YYYYMMDD format (e.g., 20240615 = June 15, 2024)"
+        tests:
+          - unique
+          - not_null
+
+      - name: date_day
+        description: "Actual date value"
+        tests:
+          - unique
+          - not_null
+
+      - name: year
+        description: "Calendar year (e.g., 2024)"
+        tests:
+          - not_null
+
+      - name: quarter
+        description: "Calendar quarter (1-4)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3, 4]
+
+      - name: month
+        description: "Calendar month (1-12)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 12
+
+      - name: month_name
+        description: "Month name (e.g., January)"
+
+      - name: day_of_month
+        description: "Day of month (1-31)"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 31
+
+      - name: day_of_week
+        description: "Day of week (0=Sunday, 6=Saturday)"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 6
+
+      - name: day_name
+        description: "Day name (e.g., Monday)"
+
+      - name: is_weekend
+        description: "Flag: TRUE if Saturday or Sunday"
+        tests:
+          - not_null
+
+      - name: is_weekday
+        description: "Flag: TRUE if Monday-Friday"
+        tests:
+          - not_null
+
+  # ==========================================================================
+  # dim_merchant_category
+  # ==========================================================================
+  - name: dim_merchant_category
+    description: |
+      Merchant category dimension for transaction categorization.
+
+      **Grain**: One row per unique merchant category
+      **Row Count**: ~10-15 categories
+
+      **Category Groups**:
+      - Leisure: Travel, Dining, Hotels, Airlines, Entertainment
+      - Necessities: Grocery, Gas, Utilities, Healthcare
+      - Retail: Shopping
+      - Other: Uncategorized
+
+      **Usage Example**:
+      ```sql
+      -- Spending by category group
+      SELECT
+          cat.category_group,
+          cat.discretionary_flag,
+          COUNT(*) AS txn_count,
+          SUM(f.transaction_amount) AS total_spend
+      FROM fct_transactions f
+      JOIN dim_merchant_category cat ON f.merchant_category_key = cat.category_key
+      GROUP BY cat.category_group, cat.discretionary_flag;
+      ```
+
+    config:
+      tags: ['gold', 'dimension', 'merchant']
+
+    columns:
+      - name: category_key
+        description: "Surrogate key (auto-generated sequential)"
+        tests:
+          - unique
+          - not_null
+
+      - name: category_name
+        description: "Category name (matches stg_transactions.merchant_category)"
+        tests:
+          - unique
+          - not_null
+
+      - name: category_group
+        description: "High-level category grouping (Leisure, Necessities, Retail, Other)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Leisure', 'Necessities', 'Retail', 'Other']
+
+      - name: spending_type
+        description: "Spending classification (e.g., 'High discretionary spending')"
+        tests:
+          - not_null
+
+      - name: discretionary_flag
+        description: "Flag: Discretionary vs Essential spending"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Discretionary', 'Essential', 'Other']
+
+  # ==========================================================================
+  # fct_transactions
+  # ==========================================================================
+  - name: fct_transactions
+    description: |
+      Central fact table for transaction analysis in star schema.
+
+      **Grain**: One row per transaction
+      **Row Count**: ~13.5 million
+      **Materialization**: Incremental (for performance on large dataset)
+      **Clustering**: By transaction_date (optimizes time-series queries)
+
+      **Foreign Keys**:
+      - customer_key → dim_customer (current version)
+      - date_key → dim_date
+      - merchant_category_key → dim_merchant_category
+
+      **Measures**:
+      - transaction_amount: Additive (SUM)
+      - transaction_count: COUNT(*)
+
+      **Degenerate Dimensions** (stored in fact):
+      - merchant_name, channel, status
+
+      **Star Schema Query Example**:
+      ```sql
+      -- Customer segment spend by category
+      SELECT
+          c.customer_segment,
+          cat.category_group,
+          d.year,
+          d.month,
+          COUNT(*) AS txn_count,
+          SUM(f.transaction_amount) AS total_spend,
+          AVG(f.transaction_amount) AS avg_spend
+      FROM fct_transactions f
+      JOIN dim_customer c ON f.customer_key = c.customer_key
+      JOIN dim_merchant_category cat ON f.merchant_category_key = cat.category_key
+      JOIN dim_date d ON f.date_key = d.date_key
+      WHERE d.year = 2024
+        AND c.is_current = TRUE
+      GROUP BY 1, 2, 3, 4
+      ORDER BY total_spend DESC;
+      ```
+
+    config:
+      tags: ['gold', 'fact', 'transactions']
+
+    columns:
+      # Keys
+      - name: transaction_key
+        description: "Surrogate key (unique identifier for fact record)"
+        tests:
+          - unique
+          - not_null
+
+      - name: transaction_id
+        description: "Natural key from source system"
+        tests:
+          - unique
+          - not_null
+
+      # Foreign Keys
+      - name: customer_key
+        description: |
+          Foreign key to dim_customer (surrogate key).
+
+          **Note**: Links to current version of customer at time of join.
+          For historical accuracy, may need to adjust join logic to use
+          point-in-time matching with valid_from/valid_to.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_key
+              config:
+                where: "is_current = TRUE"  # Only validate against current records
+
+      - name: date_key
+        description: "Foreign key to dim_date (YYYYMMDD format)"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+
+      - name: merchant_category_key
+        description: "Foreign key to dim_merchant_category"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_merchant_category')
+              field: category_key
+
+      # Degenerate Dimensions
+      - name: transaction_date
+        description: "Transaction timestamp (degenerate dimension)"
+        tests:
+          - not_null
+
+      - name: merchant_name
+        description: "Merchant identifier (degenerate dimension)"
+        tests:
+          - not_null
+
+      - name: channel
+        description: "Transaction channel: Online, In-Store, Mobile (degenerate dimension)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Online', 'In-Store', 'Mobile']
+
+      - name: status
+        description: "Transaction status: approved, declined (degenerate dimension)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['approved', 'declined']
+
+      # Measures
+      - name: transaction_amount
+        description: |
+          Transaction amount in USD (additive measure).
+
+          **Aggregations**:
+          - SUM: Total spend
+          - AVG: Average transaction value
+          - MIN/MAX: Transaction ranges
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      # Metadata
+      - name: ingestion_timestamp
+        description: "When record was loaded to Bronze layer"
+        tests:
+          - not_null
+
+      - name: source_file
+        description: "Source S3 file for data lineage"
+        tests:
+          - not_null
+
+    # Model-level tests
+    tests:
+      # Ensure mostly approved transactions (~97%)
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*) FROM {{ ref('fct_transactions') }} WHERE status = 'approved')::FLOAT
+            / (SELECT COUNT(*) FROM {{ ref('fct_transactions') }})
+            BETWEEN 0.90 AND 0.99
+          config:
+            severity: warn
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Build all mart models:
+#   dbt run --models marts.core
+#
+# Build fact table incrementally:
+#   dbt run --models fct_transactions
+#
+# Full refresh fact table:
+#   dbt run --models fct_transactions --full-refresh
+#
+# Test all mart models:
+#   dbt test --models marts.core
+#
+# Test only relationships:
+#   dbt test --models fct_transactions --select test_type:relationships
+#
+# ============================================================================

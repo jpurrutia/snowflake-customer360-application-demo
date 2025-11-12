@@ -1,0 +1,310 @@
+version: 2
+
+models:
+  # ==========================================================================
+  # customer_segments
+  # ==========================================================================
+  - name: customer_segments
+    description: |
+      Customer segmentation based on spending patterns using rolling 90-day window.
+
+      **Grain**: One row per customer (current state)
+      **Row Count**: ~50,000 customers
+      **Refresh**: Monthly (via recalculate_segments macro)
+
+      **5 Behavioral Segments**:
+
+      1. **High-Value Travelers** (~10-15% of customers)
+         - Average monthly spend ≥ $5,000
+         - Travel spend ≥ 25% of total spending
+         - High lifetime value, travel-focused behavior
+         - Target for premium rewards and travel benefits
+
+      2. **Declining** (~5-10% of customers)
+         - Spend decreased ≥ 30% from prior 90 days
+         - Prior period spend ≥ $2,000 (significant spenders)
+         - **CHURN RISK**: Immediate retention focus
+         - Target for win-back campaigns
+
+      3. **New & Growing** (~10-15% of customers)
+         - Tenure ≤ 6 months
+         - Spend increased ≥ 50% from prior period
+         - Early adopters showing strong engagement
+         - Target for onboarding incentives
+
+      4. **Budget-Conscious** (~20-25% of customers)
+         - Average monthly spend < $1,500
+         - Necessities (Grocery, Gas, Utilities) ≥ 60% of spend
+         - Price-sensitive, essential spending focus
+         - Target for cashback on everyday purchases
+
+      5. **Stable Mid-Spenders** (~40-50% of customers)
+         - Default segment for consistent behavior
+         - Moderate spending without extreme trends
+         - Reliable revenue base
+         - Target for general rewards programs
+
+      **Rolling 90-Day Window**:
+      - **Last 90 days**: Current period spending metrics
+      - **Prior 90 days**: Days 91-180 for trend comparison
+      - **Recalculation**: Monthly to capture behavior changes
+
+      **Segmentation Criteria**:
+      ```
+      Segment              | Avg Monthly Spend | Travel %  | Necessities % | Tenure | Trend
+      ---------------------|-------------------|-----------|---------------|--------|-------
+      High-Value Travelers | ≥ $5,000          | ≥ 25%     | -             | -      | -
+      Declining            | -                 | -         | -             | -      | ≤ -30%
+      New & Growing        | -                 | -         | -             | ≤ 6mo  | ≥ 50%
+      Budget-Conscious     | < $1,500          | -         | ≥ 60%         | -      | -
+      Stable Mid-Spenders  | (default)         | -         | -             | -      | -
+      ```
+
+      **Usage Example**:
+      ```sql
+      -- Segment distribution
+      SELECT
+          customer_segment,
+          COUNT(*) AS customer_count,
+          COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () AS percentage,
+          AVG(lifetime_value) AS avg_ltv,
+          AVG(avg_monthly_spend) AS avg_monthly
+      FROM {{ ref('customer_segments') }}
+      GROUP BY customer_segment
+      ORDER BY avg_ltv DESC;
+
+      -- Churn risk customers (Declining segment)
+      SELECT
+          customer_id,
+          lifetime_value,
+          spend_last_90_days,
+          spend_prior_90_days,
+          spend_change_pct
+      FROM {{ ref('customer_segments') }}
+      WHERE customer_segment = 'Declining'
+      ORDER BY spend_change_pct ASC
+      LIMIT 100;
+
+      -- High-value travelers for premium offers
+      SELECT
+          customer_id,
+          lifetime_value,
+          travel_spend_pct,
+          avg_monthly_spend
+      FROM {{ ref('customer_segments') }}
+      WHERE customer_segment = 'High-Value Travelers'
+      ORDER BY lifetime_value DESC;
+      ```
+
+    config:
+      tags: ['gold', 'mart', 'segmentation']
+
+    columns:
+      # Keys
+      - name: customer_id
+        description: "Customer identifier (natural key)"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_key
+        description: "Customer surrogate key (FK to dim_customer)"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_key
+              config:
+                where: "is_current = TRUE"
+
+      # Segment assignment
+      - name: customer_segment
+        description: |
+          Assigned behavioral segment based on spending patterns.
+
+          Values:
+          - High-Value Travelers
+          - Declining
+          - New & Growing
+          - Budget-Conscious
+          - Stable Mid-Spenders
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['High-Value Travelers', 'Stable Mid-Spenders', 'Budget-Conscious', 'Declining', 'New & Growing']
+
+      - name: segment_assigned_date
+        description: "Date when segment was assigned (typically CURRENT_DATE)"
+        tests:
+          - not_null
+
+      # All-time metrics
+      - name: total_transactions
+        description: "Total number of transactions (all-time)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: lifetime_value
+        description: "Total spending all-time (sum of all transaction amounts)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: avg_transaction_value
+        description: "Average transaction amount (all-time)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "> 0 OR avg_transaction_value IS NULL"
+
+      - name: first_transaction_date
+        description: "Date of first transaction"
+
+      - name: last_transaction_date
+        description: "Date of most recent transaction"
+
+      - name: tenure_months
+        description: "Customer tenure in months (from first transaction to now)"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Rolling 90-day metrics
+      - name: spend_last_90_days
+        description: |
+          Total spending in last 90 days (current period).
+
+          Calculation: SUM(transaction_amount) WHERE transaction_date >= CURRENT_DATE - 90
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spend_prior_90_days
+        description: |
+          Total spending in prior 90 days (days 91-180).
+
+          Calculation: SUM(transaction_amount) WHERE transaction_date BETWEEN CURRENT_DATE - 180 AND CURRENT_DATE - 91
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spend_change_pct
+        description: |
+          Percentage change from prior 90 days to last 90 days.
+
+          Calculation: ((spend_last_90_days - spend_prior_90_days) / spend_prior_90_days) * 100
+
+          Interpretation:
+          - Positive: Spending increased
+          - Negative: Spending decreased (e.g., -30% = 30% decline)
+          - 0: No prior period data
+        tests:
+          - not_null
+
+      - name: avg_monthly_spend
+        description: |
+          Average monthly spend (last 90 days / 3).
+
+          Used for segmentation threshold (e.g., ≥$5K for High-Value Travelers).
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # Category breakdown
+      - name: travel_spend_pct
+        description: |
+          Percentage of total spending on travel categories.
+
+          Categories: Travel, Airlines, Hotels
+
+          Calculation: SUM(travel_amount) / SUM(total_amount) * 100
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100 OR travel_spend_pct IS NULL"
+
+      - name: necessities_spend_pct
+        description: |
+          Percentage of total spending on necessities.
+
+          Categories: Grocery, Gas, Utilities
+
+          Calculation: SUM(necessities_amount) / SUM(total_amount) * 100
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100 OR necessities_spend_pct IS NULL"
+
+    # Model-level tests
+    tests:
+      # Ensure all customers have segments assigned
+      - dbt_utils.expression_is_true:
+          expression: "(SELECT COUNT(*) FROM {{ ref('customer_segments') }} WHERE customer_segment IS NULL) = 0"
+          config:
+            severity: error
+
+      # Segment-specific validations
+      # High-Value Travelers: avg_monthly_spend >= 5000 AND travel_spend_pct >= 25
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('customer_segments') }}
+             WHERE customer_segment = 'High-Value Travelers'
+               AND (avg_monthly_spend < 5000 OR travel_spend_pct < 25)
+            ) = 0
+          config:
+            severity: error
+
+      # Declining: spend_change_pct <= -30 AND spend_prior_90_days >= 2000
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('customer_segments') }}
+             WHERE customer_segment = 'Declining'
+               AND (spend_change_pct > -30 OR spend_prior_90_days < 2000)
+            ) = 0
+          config:
+            severity: error
+
+      # New & Growing: tenure_months <= 6 AND spend_change_pct >= 50
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('customer_segments') }}
+             WHERE customer_segment = 'New & Growing'
+               AND (tenure_months > 6 OR spend_change_pct < 50)
+            ) = 0
+          config:
+            severity: error
+
+      # Budget-Conscious: avg_monthly_spend < 1500 AND necessities_spend_pct >= 60
+      - dbt_utils.expression_is_true:
+          expression: |
+            (SELECT COUNT(*)
+             FROM {{ ref('customer_segments') }}
+             WHERE customer_segment = 'Budget-Conscious'
+               AND (avg_monthly_spend >= 1500 OR necessities_spend_pct < 60)
+            ) = 0
+          config:
+            severity: error
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Build customer segments:
+#   dbt run --models customer_segments
+#
+# Test customer segments:
+#   dbt test --models customer_segments
+#
+# Recalculate segments (monthly):
+#   dbt run-operation recalculate_segments
+#
+# View segment distribution:
+#   SELECT customer_segment, COUNT(*) FROM customer_segments GROUP BY 1;
+#
+# ============================================================================

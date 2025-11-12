@@ -1,0 +1,23 @@
+# Terraform Variables for Snowflake Customer 360 Analytics Platform
+# Copy this file to terraform.tfvars and fill in your actual values
+#
+# IMPORTANT: terraform.tfvars is git-ignored and should NOT be committed
+
+# Project Configuration
+project_name = "snowflake-customer-analytics"
+environment  = "demo"  # Options: dev, staging, demo, prod
+aws_region   = "us-east-1"
+
+# Snowflake Integration Configuration
+# Obtain these values from: DESC STORAGE INTEGRATION <integration_name>
+snowflake_account_id  = "123456789012"                # STORAGE_AWS_IAM_USER_ARN (12-digit account ID)
+snowflake_external_id = "ABC12345_SFCRole=1_XXXX"     # STORAGE_AWS_EXTERNAL_ID
+
+# Optional: Custom Tags
+tags = {
+  Project     = "Snowflake Customer 360"
+  ManagedBy   = "Terraform"
+  Environment = "demo"
+  Owner       = "your-email@example.com"
+  CostCenter  = "Engineering"
+}
