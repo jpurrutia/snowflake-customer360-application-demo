@@ -14,22 +14,25 @@ USE DATABASE CUSTOMER_ANALYTICS;
 -- ============================================================================
 
 /*
-                    generate_customer_data (Task 1)
+                    generate_customer_data (Task 1) [GOLD]
                               ↓
-                    generate_transaction_data (Task 2)
+                    generate_transaction_data (Task 2) [GOLD]
                               ↓
-                    run_dbt_transformations (Task 3)
+                    run_dbt_transformations (Task 3) [GOLD]
                               ↓
-                    train_churn_model (Task 4)
+                    train_churn_model (Task 4) [GOLD]
                               ↓
-                    refresh_analytics_views (Task 5)
+                    refresh_analytics_views (Task 5) [GOLD]
+
+NOTE: All tasks must be in same schema (GOLD) to support task dependencies.
+      Stream remains in BRONZE schema (streams don't have this limitation).
 */
 
 -- ============================================================================
 -- STEP 1: Create Root Task - Generate Customer Data
 -- ============================================================================
 
-CREATE OR REPLACE TASK BRONZE.generate_customer_data
+CREATE OR REPLACE TASK GOLD.generate_customer_data
   WAREHOUSE = COMPUTE_WH
   SCHEDULE = 'USING CRON 0 2 * * SUN UTC'  -- Weekly on Sunday at 2 AM UTC
   COMMENT = 'Generate synthetic customer data using Snowpark stored procedure'
@@ -40,9 +43,9 @@ AS
 -- STEP 2: Create Task - Generate Transaction Data
 -- ============================================================================
 
-CREATE OR REPLACE TASK BRONZE.generate_transaction_data
+CREATE OR REPLACE TASK GOLD.generate_transaction_data
   WAREHOUSE = COMPUTE_WH
-  AFTER BRONZE.generate_customer_data  -- Runs after Task 1 completes
+  AFTER GOLD.generate_customer_data  -- Runs after Task 1 completes
   COMMENT = 'Generate synthetic transaction data for all customers'
 AS
   -- Execute transaction generation SQL script from Git repository
@@ -54,7 +57,7 @@ AS
 
 CREATE OR REPLACE TASK GOLD.run_dbt_transformations
   WAREHOUSE = COMPUTE_WH
-  AFTER BRONZE.generate_transaction_data  -- Runs after Task 2 completes
+  AFTER GOLD.generate_transaction_data  -- Runs after Task 2 completes
   COMMENT = 'Execute dbt transformations to build Silver and Gold layer models'
 AS
   EXECUTE DBT PROJECT CUSTOMER_ANALYTICS.GOLD.customer_analytics_dbt
@@ -115,10 +118,12 @@ CREATE OR REPLACE STREAM bronze_transactions_stream
 -- STEP 7: Create Task for Incremental Updates (Stream Consumer)
 -- ============================================================================
 
-CREATE OR REPLACE TASK BRONZE.process_incremental_transactions
+USE SCHEMA GOLD;
+
+CREATE OR REPLACE TASK GOLD.process_incremental_transactions
   WAREHOUSE = COMPUTE_WH
   SCHEDULE = '5 MINUTE'  -- Run every 5 minutes
-  WHEN SYSTEM$STREAM_HAS_DATA('bronze_transactions_stream')  -- Only run if new data
+  WHEN SYSTEM$STREAM_HAS_DATA('CUSTOMER_ANALYTICS.BRONZE.bronze_transactions_stream')  -- Only run if new data
   COMMENT = 'Process new transactions incrementally using Stream'
 AS
   -- Insert new transactions into Gold layer
@@ -159,11 +164,11 @@ AS
 ALTER TASK GOLD.refresh_analytics_views RESUME;
 ALTER TASK GOLD.train_churn_model RESUME;
 ALTER TASK GOLD.run_dbt_transformations RESUME;
-ALTER TASK BRONZE.generate_transaction_data RESUME;
-ALTER TASK BRONZE.generate_customer_data RESUME;  -- Root task started last
+ALTER TASK GOLD.generate_transaction_data RESUME;
+ALTER TASK GOLD.generate_customer_data RESUME;  -- Root task started last
 
 -- Resume incremental processing task
-ALTER TASK BRONZE.process_incremental_transactions RESUME;
+ALTER TASK GOLD.process_incremental_transactions RESUME;
 
 -- ============================================================================
 -- STEP 9: View Task Status
@@ -215,10 +220,10 @@ ORDER BY scheduled_time DESC;
 -- ============================================================================
 
 -- Execute a specific task manually (without waiting for schedule)
--- EXECUTE TASK BRONZE.generate_customer_data;
+-- EXECUTE TASK GOLD.generate_customer_data;
 
 -- Execute entire pipeline manually
--- EXECUTE TASK BRONZE.generate_customer_data;  -- Will trigger all downstream tasks
+-- EXECUTE TASK GOLD.generate_customer_data;  -- Will trigger all downstream tasks
 
 -- ============================================================================
 -- STEP 12: Monitor Stream Status
@@ -248,12 +253,12 @@ FROM bronze_transactions_stream;
 
 -- Suspend all pipeline tasks (stops execution)
 /*
-ALTER TASK BRONZE.generate_customer_data SUSPEND;
-ALTER TASK BRONZE.generate_transaction_data SUSPEND;
+ALTER TASK GOLD.generate_customer_data SUSPEND;
+ALTER TASK GOLD.generate_transaction_data SUSPEND;
 ALTER TASK GOLD.run_dbt_transformations SUSPEND;
 ALTER TASK GOLD.train_churn_model SUSPEND;
 ALTER TASK GOLD.refresh_analytics_views SUSPEND;
-ALTER TASK BRONZE.process_incremental_transactions SUSPEND;
+ALTER TASK GOLD.process_incremental_transactions SUSPEND;
 */
 
 -- ============================================================================
@@ -265,9 +270,9 @@ ALTER TASK BRONZE.process_incremental_transactions SUSPEND;
 DROP TASK IF EXISTS GOLD.refresh_analytics_views;
 DROP TASK IF EXISTS GOLD.train_churn_model;
 DROP TASK IF EXISTS GOLD.run_dbt_transformations;
-DROP TASK IF EXISTS BRONZE.generate_transaction_data;
-DROP TASK IF EXISTS BRONZE.generate_customer_data;
-DROP TASK IF EXISTS BRONZE.process_incremental_transactions;
+DROP TASK IF EXISTS GOLD.generate_transaction_data;
+DROP TASK IF EXISTS GOLD.generate_customer_data;
+DROP TASK IF EXISTS GOLD.process_incremental_transactions;
 DROP STREAM IF EXISTS BRONZE.bronze_transactions_stream;
 */
 
@@ -293,7 +298,7 @@ GROUP BY warehouse_name;
 
 -- Create task to check for failures and send notifications
 /*
-CREATE OR REPLACE TASK BRONZE.check_pipeline_failures
+CREATE OR REPLACE TASK GOLD.check_pipeline_failures
   WAREHOUSE = COMPUTE_WH
   SCHEDULE = '15 MINUTE'
   COMMENT = 'Monitor pipeline for failures and send alerts'
@@ -324,7 +329,7 @@ BEGIN
   END IF;
 END;
 
-ALTER TASK BRONZE.check_pipeline_failures RESUME;
+ALTER TASK GOLD.check_pipeline_failures RESUME;
 */
 
 -- ============================================================================
@@ -333,4 +338,4 @@ ALTER TASK BRONZE.check_pipeline_failures RESUME;
 
 SELECT '✓ Pipeline tasks created and started successfully' AS status;
 SELECT 'Monitor with: SELECT * FROM TABLE(INFORMATION_SCHEMA.TASK_HISTORY(...))' AS monitoring;
-SELECT 'Manual execution: EXECUTE TASK BRONZE.generate_customer_data;' AS manual_run;
+SELECT 'Manual execution: EXECUTE TASK GOLD.generate_customer_data;' AS manual_run;
