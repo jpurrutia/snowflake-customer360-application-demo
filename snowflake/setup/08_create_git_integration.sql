@@ -1,115 +1,117 @@
 /*
 =============================================================================
-SNOWFLAKE GIT INTEGRATION SETUP
+SNOWFLAKE GIT INTEGRATION - REFERENCE DOCUMENTATION
 =============================================================================
 
-Purpose: Connect Snowflake to GitHub repository for version-controlled
-         code deployment and automated synchronization.
+⚠️  DO NOT RUN THIS SCRIPT - FOR REFERENCE ONLY ⚠️
 
-Prerequisites:
-1. Repository uploaded to GitHub
-2. GitHub Personal Access Token (for private repos)
-   - Generate at: https://github.com/settings/tokens
-   - Required scopes: repo (full control of private repositories)
-3. ACCOUNTADMIN role or appropriate privileges
+This file documents the Git integration that was created via Snowflake UI.
 
-Usage:
-    snowsql -a <account> -u <user> -f snowflake/setup/06_create_git_integration.sql
+Current Setup:
+- Git workspace: Created via Snowflake UI (Data > Git Repositories)
+- API Integration: GITHUB_API_INTEGRATION (created via UI)
+- Repository: https://github.com/jpurrutia/snowflake-panel-demo (public)
+- Deployment: GitHub Actions automatically deploys Streamlit on push to main
+
+Purpose: Shows DDL for existing Git integration and useful management queries
 
 Documentation: docs/GITHUB_DEPLOYMENT_GUIDE.md
 =============================================================================
 */
 
+-- =============================================================================
+-- CURRENT DEPLOYMENT WORKFLOW
+-- =============================================================================
+-- 1. Push code to GitHub: git push origin main
+-- 2. GitHub Actions workflow triggers automatically
+-- 3. Streamlit app deploys to Snowflake
+-- 4. No manual FETCH needed - fully automated!
+
 USE ROLE ACCOUNTADMIN;
 
 -- =============================================================================
--- STEP 1: Create API Integration for GitHub
+-- REFERENCE: API Integration DDL (Already Exists)
 -- =============================================================================
 
--- This enables Snowflake to communicate with GitHub's API
--- IMPORTANT: Replace <your-github-org> with your GitHub username or organization
+-- This API integration was created via Snowflake UI
+-- DO NOT RUN - Shown here for reference only
 
+/*
 CREATE OR REPLACE API INTEGRATION github_api_integration
-  API_PROVIDER = git_https_api
-  API_ALLOWED_PREFIXES = ('https://github.com/<your-github-org>/')
-  ALLOWED_AUTHENTICATION_SECRETS = ()
-  ENABLED = TRUE
-  COMMENT = 'API integration for GitHub repository access';
+    API_PROVIDER = git_https_api
+    API_ALLOWED_PREFIXES = ('https://github.com/jpurrutia/')
+    ENABLED = true
+    ALLOWED_AUTHENTICATION_SECRETS = all
+    COMMENT = 'API integration for GitHub repository access';
+*/
 
--- Verify integration was created
+
+-- =============================================================================
+-- USEFUL QUERIES: Check API Integration Status
+-- =============================================================================
+
+-- View all API integrations
 SHOW API INTEGRATIONS LIKE 'github_api_integration';
 
 -- View integration details
 DESC API INTEGRATION github_api_integration;
 
 -- =============================================================================
--- STEP 2: Create Secret for GitHub Authentication (PRIVATE REPOS ONLY)
+-- NOTE: GitHub Secret Not Needed (Public Repository)
 -- =============================================================================
 
--- If your repository is PUBLIC, you can skip this step.
--- If PRIVATE, you need to create a secret with your GitHub credentials.
-
--- IMPORTANT:
--- 1. Generate a Personal Access Token at: https://github.com/settings/tokens
--- 2. Select scope: repo (full control of private repositories)
--- 3. Replace <github-username> and <github-personal-access-token> below
+-- Since the repository is public, no GitHub Personal Access Token is needed.
+-- If you later make the repository private, you would create a secret like this:
 
 /*
 CREATE OR REPLACE SECRET github_secret
   TYPE = password
-  USERNAME = '<github-username>'
+  USERNAME = 'jpurrutia'
   PASSWORD = '<github-personal-access-token>'
   COMMENT = 'GitHub authentication credentials for private repository access';
 
--- Verify secret was created
-SHOW SECRETS LIKE 'github_secret';
+-- Then update the GIT REPOSITORY to use the secret:
+ALTER GIT REPOSITORY snowflake_panel_demo_repo SET GIT_CREDENTIALS = github_secret;
 */
 
 -- =============================================================================
--- STEP 3: Create Git Repository Object
+-- REFERENCE: Git Repository DDL (Already Exists)
 -- =============================================================================
 
--- This creates a reference to your GitHub repository within Snowflake
--- The repository will be cloned (shallow clone) into Snowflake
+-- This Git repository object was created via Snowflake UI
+-- DO NOT RUN - Shown here for reference only
 
 USE DATABASE CUSTOMER_ANALYTICS;
 USE SCHEMA GOLD;
 
--- IMPORTANT: Replace with your actual GitHub repository URL
--- Format: https://github.com/<username-or-org>/<repository-name>
-
--- FOR PUBLIC REPOSITORIES:
-CREATE OR REPLACE GIT REPOSITORY snowflake_panel_demo_repo
-  ORIGIN = 'https://github.com/<your-github-org>/snowflake-panel-demo'
-  API_INTEGRATION = github_api_integration
-  COMMENT = 'Customer 360 Analytics Platform - GitHub repository integration';
-
--- FOR PRIVATE REPOSITORIES (uncomment and use this instead):
 /*
 CREATE OR REPLACE GIT REPOSITORY snowflake_panel_demo_repo
-  ORIGIN = 'https://github.com/<your-github-org>/snowflake-panel-demo'
+  ORIGIN = 'https://github.com/jpurrutia/snowflake-customer360-application-demo'
   API_INTEGRATION = github_api_integration
-  GIT_CREDENTIALS = github_secret
-  COMMENT = 'Customer 360 Analytics Platform - GitHub repository integration (private)';
+  COMMENT = 'Customer 360 Analytics Platform - GitHub repository integration';
 */
 
--- Verify repository was created
+-- =============================================================================
+-- USEFUL QUERIES: Check Git Repository Status
+-- =============================================================================
+
+-- View all Git repositories
 SHOW GIT REPOSITORIES LIKE 'snowflake_panel_demo_repo';
 
 -- View repository details
 DESC GIT REPOSITORY snowflake_panel_demo_repo;
 
 -- =============================================================================
--- STEP 4: Fetch Latest Code from GitHub
+-- USEFUL QUERIES: Manual Fetch from GitHub (If Needed)
 -- =============================================================================
 
--- This pulls the latest commits from the remote repository
--- Run this whenever you push new code to GitHub
+-- NOTE: With GitHub Actions, this is automated and usually not needed
+-- This pulls the latest commits from the remote repository manually
 
-ALTER GIT REPOSITORY snowflake_panel_demo_repo FETCH;
+-- ALTER GIT REPOSITORY snowflake_panel_demo_repo FETCH;
 
 -- =============================================================================
--- STEP 5: Verify Repository Contents
+-- USEFUL QUERIES: Verify Repository Contents
 -- =============================================================================
 
 -- List files in the main branch
@@ -121,17 +123,21 @@ LS @snowflake_panel_demo_repo/branches/main/snowflake/;
 LS @snowflake_panel_demo_repo/branches/main/dbt_customer_analytics/;
 
 -- =============================================================================
--- STEP 6: Deploy Streamlit App from Git Repository
+-- REFERENCE: Streamlit App Deployment (Automated via GitHub Actions)
 -- =============================================================================
 
--- Option A: Deploy Streamlit app directly from Git repository
--- This creates a Streamlit app that always uses the latest code from Git
+-- NOTE: Streamlit app is deployed automatically via GitHub Actions
+-- The workflow in .github/workflows/deploy-streamlit.yml handles deployment
+-- No manual CREATE STREAMLIT command is needed
 
+-- For reference, the DDL would look like:
+/*
 CREATE OR REPLACE STREAMLIT customer_360_app
   ROOT_LOCATION = '@snowflake_panel_demo_repo/branches/main/streamlit'
   MAIN_FILE = 'app.py'
   QUERY_WAREHOUSE = 'COMPUTE_WH'
   COMMENT = 'Customer 360 Analytics Dashboard - deployed from GitHub';
+*/
 
 -- View Streamlit app details
 SHOW STREAMLIT APPS LIKE 'customer_360_app';
@@ -141,7 +147,7 @@ DESC STREAMLIT customer_360_app;
 SELECT SYSTEM$GET_STREAMLIT_APP_URL('customer_360_app') as streamlit_url;
 
 -- =============================================================================
--- STEP 7: Execute SQL Scripts from Git Repository (Optional)
+-- OPTIONAL: Execute SQL Scripts from Git Repository
 -- =============================================================================
 
 -- You can execute SQL files directly from the Git repository
@@ -154,12 +160,13 @@ SELECT SYSTEM$GET_STREAMLIT_APP_URL('customer_360_app') as streamlit_url;
 -- EXECUTE IMMEDIATE FROM @snowflake_panel_demo_repo/branches/main/snowflake/ml/01_train_churn_model.sql;
 
 -- =============================================================================
--- STEP 8: Set Up Automated Fetch (Optional)
+-- OPTIONAL: Set Up Automated Fetch Task
 -- =============================================================================
 
--- Create a task to automatically fetch from GitHub every hour
--- This keeps your Snowflake repository in sync with GitHub
+-- NOTE: With GitHub Actions, automated fetch is usually not needed
+-- But if you want Snowflake to periodically check for updates, you can create a task
 
+-- Example: Create a task to fetch from GitHub every hour
 /*
 USE ROLE ACCOUNTADMIN;
 
@@ -194,50 +201,51 @@ ORDER BY SCHEDULED_TIME DESC;
 -- USEFUL COMMANDS FOR ONGOING MANAGEMENT
 -- =============================================================================
 
--- Fetch latest code from GitHub (run after pushing new code)
--- ALTER GIT REPOSITORY snowflake_panel_demo_repo FETCH;
+-- Fetch latest code from GitHub (if not using GitHub Actions)
+ALTER GIT REPOSITORY snowflake_panel_demo_repo FETCH;
 
 -- Switch to a different branch
--- ALTER GIT REPOSITORY snowflake_panel_demo_repo SET BRANCH = 'develop';
+ALTER GIT REPOSITORY snowflake_panel_demo_repo SET BRANCH = 'develop';
 
 -- Switch to a specific tag
--- ALTER GIT REPOSITORY snowflake_panel_demo_repo SET TAG = 'v1.0.0';
+ALTER GIT REPOSITORY snowflake_panel_demo_repo SET TAG = 'v1.0.0';
 
 -- Switch to a specific commit
--- ALTER GIT REPOSITORY snowflake_panel_demo_repo SET COMMIT = '<commit-sha>';
+ALTER GIT REPOSITORY snowflake_panel_demo_repo SET COMMIT = '<commit-sha>';
 
 -- View current branch/tag/commit
--- DESC GIT REPOSITORY snowflake_panel_demo_repo;
+DESC GIT REPOSITORY snowflake_panel_demo_repo;
 
 -- List all branches available
--- LS @snowflake_panel_demo_repo/branches/;
+LS @snowflake_panel_demo_repo/branches/;
 
--- Refresh Streamlit app after fetching new code
--- ALTER STREAMLIT customer_360_app REFRESH;
+-- Refresh Streamlit app after fetching new code (if not using GitHub Actions)
+ALTER STREAMLIT customer_360_app REFRESH;
 
 -- =============================================================================
 -- TROUBLESHOOTING
 -- =============================================================================
 
 -- Check API integration status
--- SHOW API INTEGRATIONS LIKE 'github_api_integration';
--- DESC API INTEGRATION github_api_integration;
+SHOW API INTEGRATIONS LIKE 'github_api_integration';
+DESC API INTEGRATION github_api_integration;
 
 -- Check if repository is accessible
--- LS @snowflake_panel_demo_repo/branches/main/;
+LS @snowflake_panel_demo_repo/branches/main/;
 
 -- Check Streamlit app logs
--- SELECT * FROM TABLE(INFORMATION_SCHEMA.STREAMLIT_EVENT_HISTORY(
---   STREAMLIT_NAME => 'customer_360_app'
--- ))
--- ORDER BY TIMESTAMP DESC
--- LIMIT 100;
+SELECT * FROM TABLE(INFORMATION_SCHEMA.STREAMLIT_EVENT_HISTORY(
+  STREAMLIT_NAME => 'customer_360_app'
+))
+ORDER BY TIMESTAMP DESC
+LIMIT 100;
 
 -- Common Issues:
 -- 1. "Git repository not found" - Check ORIGIN URL is correct
--- 2. "Authentication failed" - Regenerate GitHub PAT with correct scopes
+-- 2. "Authentication failed" - Regenerate GitHub PAT with correct scopes (if private repo)
 -- 3. "Streamlit app not found" - Check ROOT_LOCATION path matches repo structure
 -- 4. "Files not visible" - Run ALTER GIT REPOSITORY ... FETCH;
+-- 5. "GitHub Actions deployment fails" - Check GitHub secrets and workflow configuration
 
 -- =============================================================================
 -- CLEANUP (IF NEEDED)
@@ -257,24 +265,25 @@ DROP API INTEGRATION IF EXISTS github_api_integration;
 -- =============================================================================
 
 /*
-After completing this setup:
+Current Deployment Workflow:
 
-1. ✅ Test Streamlit app:
-   - Get URL: SELECT SYSTEM$GET_STREAMLIT_APP_URL('customer_360_app');
-   - Open in browser and verify all 4 tabs work
-
-2. ✅ Push code changes to GitHub:
+1. ✅ Push code changes to GitHub:
    - git add .
    - git commit -m "Update feature"
    - git push origin main
 
-3. ✅ Sync Snowflake with GitHub:
+2. ✅ GitHub Actions automatically deploys:
+   - Workflow: .github/workflows/deploy-streamlit.yml
+   - Deploys Streamlit app to Snowflake automatically
+   - No manual FETCH or REFRESH needed!
+
+3. ✅ Test Streamlit app:
+   - Get URL: SELECT SYSTEM$GET_STREAMLIT_APP_URL('customer_360_app');
+   - Open in browser and verify all 4 tabs work
+
+4. ✅ (Optional) Manual sync (if not using GitHub Actions):
    - ALTER GIT REPOSITORY snowflake_panel_demo_repo FETCH;
    - ALTER STREAMLIT customer_360_app REFRESH;
-
-4. ✅ (Optional) Set up GitHub Actions for automated deployment:
-   - See: .github/workflows/deploy-streamlit.yml
-   - Configure GitHub secrets for SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PASSWORD
 
 5. ✅ (Optional) Connect dbt Cloud:
    - See: docs/DBT_CLOUD_SETUP_GUIDE.md

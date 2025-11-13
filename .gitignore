@@ -117,3 +117,6 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Commands with variables
+snowflake/setup/snowsql_commands.sh

@@ -41,21 +41,23 @@ CREATE OR REPLACE FILE FORMAT csv_format
 -- ============================================================================
 
 CREATE OR REPLACE STAGE customer_stage
-  URL = 's3://<S3_BUCKET_NAME>/customers/'
-  STORAGE_INTEGRATION = customer360_s3_integration
+  URL = 's3://snowflake-customer-analytics-data-demo/customers/'
+  STORAGE_INTEGRATION = s3_customer_analytics_integration
   FILE_FORMAT = csv_format
   COMMENT = 'External stage for customer CSV files from S3';
 
 -- Example (DO NOT USE THIS VALUE):
 -- URL = 's3://customer360-analytics-data-20250111/customers/'
 
+
+
 -- ============================================================================
 -- Create External Stage: TRANSACTION_STAGE_HISTORICAL
 -- ============================================================================
 
 CREATE OR REPLACE STAGE transaction_stage_historical
-  URL = 's3://<S3_BUCKET_NAME>/transactions/historical/'
-  STORAGE_INTEGRATION = customer360_s3_integration
+  URL = 's3://snowflake-customer-analytics-data-demo/transactions/historical/'
+  STORAGE_INTEGRATION = s3_customer_analytics_integration
   FILE_FORMAT = csv_format
   COMMENT = 'External stage for historical transaction CSV files from S3';
 
@@ -64,8 +66,8 @@ CREATE OR REPLACE STAGE transaction_stage_historical
 -- ============================================================================
 
 CREATE OR REPLACE STAGE transaction_stage_streaming
-  URL = 's3://<S3_BUCKET_NAME>/transactions/streaming/'
-  STORAGE_INTEGRATION = customer360_s3_integration
+  URL = 's3://snowflake-customer-analytics-data-demo/transactions/streaming/'
+  STORAGE_INTEGRATION = s3_customer_analytics_integration
   FILE_FORMAT = csv_format
   COMMENT = 'External stage for streaming/incremental transaction data from S3';
 

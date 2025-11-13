@@ -20,6 +20,7 @@ USE ROLE ACCOUNTADMIN;
 -- Create Storage Integration
 -- ============================================================================
 
+/*
 CREATE OR REPLACE STORAGE INTEGRATION customer360_s3_integration
   TYPE = EXTERNAL_STAGE
   STORAGE_PROVIDER = 'S3'
@@ -30,6 +31,20 @@ CREATE OR REPLACE STORAGE INTEGRATION customer360_s3_integration
     's3://<S3_BUCKET_NAME>/transactions/'
   )
   COMMENT = 'Storage integration for Customer 360 Analytics data lake in S3';
+ */
+
+  -- Create integration using $ prefix for variables
+  CREATE OR REPLACE STORAGE INTEGRATION
+  s3_customer_analytics_integration
+    TYPE = EXTERNAL_STAGE
+    STORAGE_PROVIDER = 'S3'
+    ENABLED = TRUE
+    STORAGE_AWS_ROLE_ARN = '&{iam_role_arn}'
+    STORAGE_ALLOWED_LOCATIONS = (
+      '&{customer_location}',
+      '&{transaction_location}'
+    );
+
 
 -- Example (DO NOT USE THESE VALUES):
 -- STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::339712742264:role/snowflake-customer360-s3-access'
@@ -40,7 +55,7 @@ CREATE OR REPLACE STORAGE INTEGRATION customer360_s3_integration
 -- ============================================================================
 
 -- Run this to get the values you need to update Terraform
-DESC STORAGE INTEGRATION customer360_s3_integration;
+DESC STORAGE INTEGRATION s3_customer_analytics_integration;
 
 -- Look for these two values in the output:
 -- 1. STORAGE_AWS_IAM_USER_ARN
@@ -68,13 +83,13 @@ DESC STORAGE INTEGRATION customer360_s3_integration;
 -- ============================================================================
 
 -- Check that storage integration was created
-SHOW STORAGE INTEGRATIONS LIKE 'customer360_s3_integration';
+SHOW STORAGE INTEGRATIONS LIKE 's3_customer_analytics_integration';
 
 -- Grant usage to DATA_ENGINEER role
-GRANT USAGE ON INTEGRATION customer360_s3_integration TO ROLE DATA_ENGINEER;
+GRANT USAGE ON INTEGRATION s3_customer_analytics_integration TO ROLE DATA_ENGINEER;
 
 -- Verify grants
-SHOW GRANTS ON INTEGRATION customer360_s3_integration;
+SHOW GRANTS ON INTEGRATION s3_customer_analytics_integration;
 
 -- ============================================================================
 -- Understanding the Trust Relationship
