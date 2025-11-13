@@ -46,7 +46,7 @@ AS
 CREATE OR REPLACE TASK GOLD.generate_transaction_data
   WAREHOUSE = COMPUTE_WH
   AFTER GOLD.generate_customer_data  -- Runs after Task 1 completes
-  COMMENT = 'Generate synthetic transaction data for all customers'
+  -- COMMENT = 'Generate synthetic transaction data for all customers'
 AS
   -- Execute transaction generation SQL script from Git repository
   EXECUTE IMMEDIATE FROM @CUSTOMER_ANALYTICS.GOLD.snowflake_panel_demo_repo/branches/main/snowflake/data_generation/generate_transactions.sql;
@@ -58,7 +58,7 @@ AS
 CREATE OR REPLACE TASK GOLD.run_dbt_transformations
   WAREHOUSE = COMPUTE_WH
   AFTER GOLD.generate_transaction_data  -- Runs after Task 2 completes
-  COMMENT = 'Execute dbt transformations to build Silver and Gold layer models'
+  -- COMMENT = 'Execute dbt transformations to build Silver and Gold layer models'
 AS
   EXECUTE DBT PROJECT CUSTOMER_ANALYTICS.GOLD.customer_analytics_dbt
     COMMAND = 'run'
@@ -71,7 +71,7 @@ AS
 CREATE OR REPLACE TASK GOLD.train_churn_model
   WAREHOUSE = COMPUTE_WH
   AFTER GOLD.run_dbt_transformations  -- Runs after Task 3 completes
-  COMMENT = 'Train churn prediction model using Snowflake ML'
+  -- COMMENT = 'Train churn prediction model using Snowflake ML'
 AS
   -- Execute ML model training from Git repository
   EXECUTE IMMEDIATE FROM @CUSTOMER_ANALYTICS.GOLD.snowflake_panel_demo_repo/branches/main/snowflake/ml/03_train_churn_model.sql;
@@ -80,28 +80,28 @@ AS
 -- STEP 5: Create Task - Refresh Analytics Views
 -- ============================================================================
 
-CREATE OR REPLACE TASK GOLD.refresh_analytics_views
-  WAREHOUSE = COMPUTE_WH
-  AFTER GOLD.train_churn_model  -- Runs after Task 4 completes
-  COMMENT = 'Refresh materialized views and update analytics tables'
-AS
-BEGIN
-  -- Refresh customer 360 profile
-  ALTER VIEW IF EXISTS CUSTOMER_ANALYTICS.GOLD.customer_360_profile REFRESH;
+  CREATE OR REPLACE TASK GOLD.refresh_analytics_views
+    WAREHOUSE = COMPUTE_WH
+    AFTER GOLD.train_churn_model
+    -- COMMENT = 'Update analytics metadata and observability metrics'
+  AS
+  BEGIN
+    -- Note: customer_360_profile table is already refreshed by dbt task (Task 3)
+    -- No separate refresh needed for dbt-managed tables
 
-  -- Update observability metrics
-  INSERT INTO CUSTOMER_ANALYTICS.BRONZE.pipeline_run_metadata (
-    pipeline_name,
-    run_timestamp,
-    status,
-    records_processed
-  )
-  SELECT
-    'complete_pipeline',
-    CURRENT_TIMESTAMP(),
-    'SUCCESS',
-    (SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS);
-END;
+    -- Update observability metrics
+    INSERT INTO CUSTOMER_ANALYTICS.BRONZE.pipeline_run_metadata (
+      pipeline_name,
+      run_timestamp,
+      status,
+      records_processed
+    )
+    SELECT
+      'complete_pipeline',
+      CURRENT_TIMESTAMP(),
+      'SUCCESS',
+      (SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS);
+  END;
 
 -- ============================================================================
 -- STEP 6: Create Stream for Incremental Processing
@@ -124,7 +124,7 @@ CREATE OR REPLACE TASK GOLD.process_incremental_transactions
   WAREHOUSE = COMPUTE_WH
   SCHEDULE = '5 MINUTE'  -- Run every 5 minutes
   WHEN SYSTEM$STREAM_HAS_DATA('CUSTOMER_ANALYTICS.BRONZE.bronze_transactions_stream')  -- Only run if new data
-  COMMENT = 'Process new transactions incrementally using Stream'
+  -- COMMENT = 'Process new transactions incrementally using Stream'
 AS
   -- Insert new transactions into Gold layer
   MERGE INTO CUSTOMER_ANALYTICS.GOLD.fct_transactions AS target
@@ -177,20 +177,10 @@ ALTER TASK GOLD.process_incremental_transactions RESUME;
 -- Show all tasks
 SHOW TASKS IN DATABASE CUSTOMER_ANALYTICS;
 
+
+
 -- Check task state
-SELECT
-    name,
-    database_name,
-    schema_name,
-    state,
-    schedule,
-    warehouse,
-    predecessors,
-    created_on,
-    last_committed_on
-FROM TABLE(INFORMATION_SCHEMA.TASKS())
-WHERE database_name = 'CUSTOMER_ANALYTICS'
-ORDER BY created_on;
+
 
 -- ============================================================================
 -- STEP 10: Monitor Task Execution History
