@@ -470,3 +470,21 @@ This is a demonstration project. For production use, consider:
 ## Contact
 
 [Add contact information here]
+
+
+
+
+# APPENDIX
+
+Github actions deploy streamlist Flow:
+
+  1. You update snowflake.yml (add imports: [requirements.txt])
+  2. Git commit + push to GitHub
+  3. GitHub Actions workflow triggers
+  4. GHA runs: snow streamlit deploy --replace
+  5. Snowflake CLI uploads: app.py, requirements.txt, snowflake.yml, tabs/*
+  6. Snowflake reads snowflake.yml
+  7. Snowflake sees: imports: [requirements.txt]
+  8. Snowflake creates Python env and runs: pip install -r requirements.txt
+  9. Snowflake starts Streamlit app with all packages available
+  10. ✅ App works!

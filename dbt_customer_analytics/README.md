@@ -10,6 +10,87 @@ This dbt project transforms raw customer and transaction data from the Bronze la
 
 ---
 
+## NEW FEATURE 
+
+This is a brand new feature - dbt natively in Snowflake!
+
+  What This Feature Does:
+
+  Snowflake now has a DBT PROJECT object that lets you:
+  1. Deploy your dbt project directly into Snowflake (from Git or workspace)
+  2. Execute dbt models natively in Snowflake (no local dbt installation needed)
+  3. Schedule runs using Snowflake Tasks
+  4. Version control your dbt project files in Snowflake
+
+  How It Works:
+
+  Step 1: Create a DBT PROJECT Object from Your Git Repo
+
+  USE ROLE SYSADMIN;
+  USE DATABASE CUSTOMER_ANALYTICS;
+  USE SCHEMA GOLD;
+
+  -- Create dbt project from Git repository
+  CREATE OR REPLACE DBT PROJECT dbt_customer_analytics_project
+    FROM '@snowflake-customer360-application-demo/branches/main/dbt_customer_analytics/';
+
+  Step 2: Execute dbt Models in Snowflake
+
+  -- Run all models
+  EXECUTE DBT PROJECT dbt_customer_analytics_project;
+
+  -- Or run specific models
+  EXECUTE DBT PROJECT dbt_customer_analytics_project
+    WITH COMMAND = 'run --select staging.*';
+
+  -- Run tests
+  EXECUTE DBT PROJECT dbt_customer_analytics_project
+    WITH COMMAND = 'test';
+
+  Step 3: (Optional) Schedule Automatic Runs
+
+  -- Create a task to run dbt daily at 6am
+  CREATE OR REPLACE TASK run_dbt_daily
+    WAREHOUSE = COMPUTE_WH
+    SCHEDULE = 'USING CRON 0 6 * * * UTC'
+  AS
+    EXECUTE DBT PROJECT dbt_customer_analytics_project;
+
+  -- Start the task
+  ALTER TASK run_dbt_daily RESUME;
+
+  Benefits vs Local dbt:
+
+  | Feature            | Local dbt                      | dbt in Snowflake (Native)      |
+  |--------------------|--------------------------------|--------------------------------|
+  | Installation       | Need Python + dbt-core locally | ✅ No installation needed       |
+  | Execution          | Run from your machine          | ✅ Runs in Snowflake            |
+  | Scheduling         | Manual/cron/Airflow            | ✅ Snowflake Tasks (built-in)   |
+  | Version control    | Git only                       | ✅ Git + Snowflake versioning   |
+  | CI/CD              | GitHub Actions needed          | ✅ Native Snowflake integration |
+  | Team collaboration | Share Git repo                 | ✅ Share DBT PROJECT object     |
+
+  Should You Use This?
+
+  Pros:
+  - ✅ No need to run dbt run locally anymore
+  - ✅ Easier scheduling (native Snowflake Tasks)
+  - ✅ Team can execute from Snowflake UI
+  - ✅ Integrated monitoring
+
+  Cons:
+  - ⚠️ Newer feature (may have quirks)
+  - ⚠️ Less familiar if you're used to local dbt workflow
+
+  ---
+  Would you like to try setting up native dbt in Snowflake? I can help you:
+  1. Create the DBT PROJECT object from your Git repository
+  2. Test running it natively in Snowflake
+  3. (Optional) Set up scheduled runs
+
+
+
+
 ## Project Structure
 
 ```
