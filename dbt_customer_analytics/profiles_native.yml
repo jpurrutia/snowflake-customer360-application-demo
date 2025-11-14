@@ -1,0 +1,20 @@
+# ============================================================================
+# Native Snowflake dbt Profile Configuration
+# ============================================================================
+# For use with Snowflake's native DBT PROJECT execution
+# Authentication is handled by Snowflake session context
+# ============================================================================
+
+customer_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ target.account }}"
+      user: "{{ target.user }}"
+      role: "{{ target.role }}"
+      database: "{{ target.database }}"
+      warehouse: "{{ target.warehouse }}"
+      schema: silver
+      threads: 4
+      client_session_keep_alive: false

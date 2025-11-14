@@ -83,10 +83,10 @@ SELECT
     cmv.month_num,
     -- Random day within the month
     DATEADD('day', UNIFORM(0, 28, RANDOM()), cmv.transaction_date) AS transaction_date,
-    SEQ4() AS txn_seq
+    ROW_NUMBER() OVER (PARTITION BY cmv.customer_id, cmv.transaction_date ORDER BY SEQ4()) - 1 AS txn_seq
 FROM customer_monthly_volume cmv
-CROSS JOIN TABLE(GENERATOR(ROWCOUNT => 100)) gen  -- Max transactions per customer per month
-WHERE SEQ4() < cmv.monthly_transactions;  -- Filter to actual monthly volume
+CROSS JOIN TABLE(GENERATOR(ROWCOUNT => 100))  -- Max transactions per customer per month
+QUALIFY txn_seq < cmv.monthly_transactions;  -- Filter to actual monthly volume using QUALIFY
 
 -- Verify transaction expansion
 SELECT
@@ -264,10 +264,10 @@ transactions_expanded AS (
         cmv.decline_type,
         cmv.month_num,
         DATEADD('day', UNIFORM(0, 28, RANDOM()), cmv.month_start_date) AS transaction_date,
-        SEQ4() AS txn_seq
+        ROW_NUMBER() OVER (PARTITION BY cmv.customer_id, cmv.month_start_date ORDER BY SEQ4()) - 1 AS txn_seq
     FROM customer_monthly_volume cmv,
          TABLE(GENERATOR(ROWCOUNT => 100))
-    WHERE SEQ4() < cmv.monthly_transactions
+    QUALIFY txn_seq < cmv.monthly_transactions
 ),
 -- Generate full transaction details
 transactions_with_details AS (
