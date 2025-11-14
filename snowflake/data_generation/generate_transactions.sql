@@ -83,10 +83,10 @@ SELECT
     cmv.month_num,
     -- Random day within the month
     DATEADD('day', UNIFORM(0, 28, RANDOM()), cmv.transaction_date) AS transaction_date,
-    gen.SEQ4() AS txn_seq
+    SEQ4() AS txn_seq
 FROM customer_monthly_volume cmv
 CROSS JOIN TABLE(GENERATOR(ROWCOUNT => 100)) gen  -- Max transactions per customer per month
-WHERE gen.SEQ4() < cmv.monthly_transactions;  -- Filter to actual monthly volume
+WHERE SEQ4() < cmv.monthly_transactions;  -- Filter to actual monthly volume
 
 -- Verify transaction expansion
 SELECT
