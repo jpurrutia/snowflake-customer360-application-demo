@@ -207,34 +207,33 @@ SELECT
 FROM transactions_with_details;
 
 -- ============================================================================
--- Part E: Export to S3 for Bulk Load
+-- Part E: Load Directly into Bronze Table
 -- ============================================================================
 
-SELECT 'Part E: Exporting to S3...' AS step;
+SELECT 'Part E: Loading into BRONZE.BRONZE_TRANSACTIONS...' AS step;
 
--- Export to S3 stage (compressed CSV)
-COPY INTO @CUSTOMER_ANALYTICS.BRONZE.transaction_stage_historical/transactions_historical.csv
-FROM (
-    SELECT
-        transaction_id,
-        customer_id,
-        transaction_date,
-        transaction_amount,
-        merchant_name,
-        merchant_category,
-        channel,
-        status
-    FROM transactions_with_details
-    ORDER BY transaction_date, customer_id
+-- Insert directly into Bronze table (no S3 export needed for Snowflake-native execution)
+INSERT INTO CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS (
+    transaction_id,
+    customer_id,
+    transaction_date,
+    transaction_amount,
+    merchant_name,
+    merchant_category,
+    channel,
+    status
 )
-FILE_FORMAT = (
-    TYPE = 'CSV'
-    COMPRESSION = 'GZIP'
-    FIELD_OPTIONALLY_ENCLOSED_BY = '"'
-)
-HEADER = TRUE
-OVERWRITE = TRUE
-MAX_FILE_SIZE = 104857600;  -- 100MB files
+SELECT
+    transaction_id,
+    customer_id,
+    transaction_date,
+    transaction_amount,
+    merchant_name,
+    merchant_category,
+    channel,
+    status
+FROM transactions_with_details
+ORDER BY transaction_date, customer_id;
 
 -- ============================================================================
 -- Summary Statistics
@@ -343,17 +342,21 @@ SELECT
 FROM declining_monthly;
 
 -- ============================================================================
--- List Exported Files
+-- Verify Load Completion
 -- ============================================================================
 
-SELECT 'Exported Files in S3:' AS files;
+SELECT 'Verifying data load...' AS step;
 
-LIST @CUSTOMER_ANALYTICS.BRONZE.transaction_stage_historical;
+-- Count records in Bronze table
+SELECT
+    'Records Loaded into BRONZE_TRANSACTIONS' AS metric,
+    COUNT(*) AS value
+FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS;
 
 -- ============================================================================
 -- Completion Message
 -- ============================================================================
 
 SELECT '✓ Transaction generation completed successfully' AS status;
-SELECT 'Transactions exported to S3 stage: @transaction_stage_historical' AS next_step;
-SELECT 'Next: Load transactions into Bronze layer (Iteration 2.5)' AS action;
+SELECT 'Transactions loaded directly into BRONZE.BRONZE_TRANSACTIONS' AS next_step;
+SELECT 'Next: Run dbt transformations (Task 3)' AS action;
