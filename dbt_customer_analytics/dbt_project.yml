@@ -100,25 +100,25 @@ on-run-start:
 
 # Run at the end of dbt execution
 on-run-end:
-  # Determine overall status
-  - "{% set status = 'SUCCESS' if results | selectattr('status', 'equalto', 'error') | list | length == 0 else 'FAILED' %}"
-
-  # Count results
-  - "{% set models_run = results | length %}"
-  - "{% set models_failed = results | selectattr('status', 'equalto', 'error') | list | length %}"
-  - "{% set models_passed = models_run - models_failed %}"
-
-  # Log summary
-  - "{{ log('', info=True) }}"
-  - "{{ log('╔══════════════════════════════════════════╗', info=True) }}"
-  - "{{ log('║  dbt Run Completed                      ║', info=True) }}"
-  - "{{ log('║  Status: ' ~ status ~ '                         ║', info=True) }}"
-  - "{{ log('║  Models Run: ' ~ models_run ~ '                       ║', info=True) }}"
-  - "{{ log('║  Passed: ' ~ models_passed ~ '   Failed: ' ~ models_failed ~ '           ║', info=True) }}"
-  - "{{ log('╚══════════════════════════════════════════╝', info=True) }}"
+  # Log summary and update observability
+  - "{% set models_run = results | length %}
+     {% set models_failed = results | selectattr('status', 'equalto', 'error') | list | length %}
+     {% set models_passed = models_run - models_failed %}
+     {% set status = 'SUCCESS' if models_failed == 0 else 'FAILED' %}
+     {{ log('', info=True) }}
+     {{ log('╔══════════════════════════════════════════╗', info=True) }}
+     {{ log('║  dbt Run Completed                      ║', info=True) }}
+     {{ log('║  Status: ' ~ status ~ '                         ║', info=True) }}
+     {{ log('║  Models Run: ' ~ models_run ~ '                       ║', info=True) }}
+     {{ log('║  Passed: ' ~ models_passed ~ '   Failed: ' ~ models_failed ~ '           ║', info=True) }}
+     {{ log('╚══════════════════════════════════════════╝', info=True) }}"
 
   # Update observability table with final status
   - "{% if target.name != 'test' %}
+     {% set models_run = results | length %}
+     {% set models_failed = results | selectattr('status', 'equalto', 'error') | list | length %}
+     {% set models_passed = models_run - models_failed %}
+     {% set status = 'SUCCESS' if models_failed == 0 else 'FAILED' %}
      UPDATE {{ target.database }}.OBSERVABILITY.PIPELINE_RUN_METADATA
      SET
        status = '{{ status }}',
