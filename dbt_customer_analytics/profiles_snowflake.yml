@@ -1,0 +1,32 @@
+# ============================================================================
+# Native Snowflake dbt Profile Configuration
+# ============================================================================
+# For use with Snowflake's native DBT PROJECT execution
+# Account and user context are inherited from the Snowflake session
+# This file is safe to commit - contains no credentials
+# ============================================================================
+
+customer_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: 'not needed'
+      user: 'not needed'
+      role: DATA_ENGINEER
+      database: CUSTOMER_ANALYTICS
+      warehouse: COMPUTE_WH
+      schema: silver
+      threads: 4
+      client_session_keep_alive: false
+
+    prod:
+      type: snowflake
+      account: 'not needed'
+      user: 'not needed'
+      role: DATA_ENGINEER
+      database: CUSTOMER_ANALYTICS
+      warehouse: COMPUTE_WH
+      schema: silver
+      threads: 8
+      client_session_keep_alive: true

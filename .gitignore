@@ -89,7 +89,7 @@ data/
 dbt_customer_analytics/target/
 dbt_customer_analytics/logs/
 dbt_customer_analytics/dbt_packages/
-dbt_customer_analytics/profiles.yml
+# dbt_customer_analytics/profiles.yml  # Commented out - safe to commit with 'not needed' credentials for Snowflake native execution
 
 # Logs
 *.log
