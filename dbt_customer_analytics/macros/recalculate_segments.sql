@@ -44,9 +44,11 @@ TRUNCATE TABLE IF EXISTS {{ target.database }}.GOLD.CUSTOMER_SEGMENTS;
 {% do run_query(truncate_query) %}
 
 -- Step 2: Rebuild from model
+-- Note: This operation requires the customer_segments model to be materialized
 {% set rebuild_query %}
-INSERT INTO {{ target.database }}.GOLD.CUSTOMER_SEGMENTS
-SELECT * FROM {{ ref('customer_segments') }};
+-- Run: dbt run --models customer_segments --full-refresh
+-- This macro is kept for reference but actual refresh should use dbt run
+SELECT 'Use dbt run --models customer_segments --full-refresh to rebuild segments' AS message;
 {% endset %}
 
 {{ log("Rebuilding customer_segments with rolling 90-day window...", info=True) }}
