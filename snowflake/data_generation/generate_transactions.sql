@@ -11,9 +11,6 @@ USE WAREHOUSE COMPUTE_WH;  -- Consider using larger warehouse (MEDIUM/LARGE) for
 USE DATABASE CUSTOMER_ANALYTICS;
 USE SCHEMA BRONZE;
 
--- Wrap entire script in BEGIN...END to ensure temp tables persist across statements
-BEGIN
-
 -- ============================================================================
 -- Part A: Create Date Spine (18 months, daily granularity)
 -- ============================================================================
@@ -210,12 +207,12 @@ SELECT
 FROM transactions_with_details;
 
 -- ============================================================================
--- Part E: Load Directly into Bronze Table
+-- Part E: Load Directly into Bronze Table (Single Statement - No Temp Tables)
 -- ============================================================================
 
 SELECT 'Part E: Loading into BRONZE.BRONZE_TRANSACTIONS...' AS step;
 
--- Insert directly into Bronze table (no S3 export needed for Snowflake-native execution)
+-- Generate and insert all transactions in a single statement to avoid temp table issues
 INSERT INTO CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS (
     transaction_id,
     customer_id,
@@ -225,6 +222,93 @@ INSERT INTO CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS (
     merchant_category,
     channel,
     status
+)
+WITH
+-- Generate date spine for 18 months
+date_spine AS (
+    SELECT
+        DATEADD('day', SEQ4(), DATEADD('month', -18, CURRENT_DATE())) AS transaction_date,
+        DATEDIFF('month', DATEADD('month', -18, CURRENT_DATE()),
+                 DATEADD('day', SEQ4(), DATEADD('month', -18, CURRENT_DATE()))) AS month_num
+    FROM TABLE(GENERATOR(ROWCOUNT => 540))
+),
+-- Get first day of each month
+monthly_dates AS (
+    SELECT DISTINCT transaction_date, month_num
+    FROM date_spine
+    WHERE DAY(transaction_date) = 1
+),
+-- Calculate monthly transaction volume per customer
+customer_monthly_volume AS (
+    SELECT
+        c.customer_id,
+        c.customer_segment,
+        c.decline_type,
+        d.transaction_date AS month_start_date,
+        d.month_num,
+        CASE c.customer_segment
+            WHEN 'High-Value Travelers' THEN UNIFORM(40, 80, RANDOM())
+            WHEN 'Stable Mid-Spenders' THEN UNIFORM(20, 40, RANDOM())
+            WHEN 'Budget-Conscious' THEN UNIFORM(15, 30, RANDOM())
+            WHEN 'Declining' THEN UNIFORM(20, 40, RANDOM())
+            WHEN 'New & Growing' THEN UNIFORM(25, 50, RANDOM())
+        END AS monthly_transactions
+    FROM BRONZE.BRONZE_CUSTOMERS c
+    CROSS JOIN monthly_dates d
+),
+-- Expand to individual transactions using GENERATOR
+transactions_expanded AS (
+    SELECT
+        cmv.customer_id,
+        cmv.customer_segment,
+        cmv.decline_type,
+        cmv.month_num,
+        DATEADD('day', UNIFORM(0, 28, RANDOM()), cmv.month_start_date) AS transaction_date,
+        SEQ4() AS txn_seq
+    FROM customer_monthly_volume cmv,
+         TABLE(GENERATOR(ROWCOUNT => 100))
+    WHERE SEQ4() < cmv.monthly_transactions
+),
+-- Generate full transaction details
+transactions_with_details AS (
+    SELECT
+        'TXN' || LPAD(ROW_NUMBER() OVER (ORDER BY transaction_date, customer_id), 11, '0') AS transaction_id,
+        customer_id,
+        transaction_date,
+        customer_segment,
+        -- Transaction amount varies by segment
+        CASE customer_segment
+            WHEN 'High-Value Travelers' THEN
+                ROUND(UNIFORM(50, 500, RANDOM()), 2)
+            WHEN 'Stable Mid-Spenders' THEN
+                ROUND(UNIFORM(30, 150, RANDOM()), 2)
+            WHEN 'Budget-Conscious' THEN
+                ROUND(UNIFORM(10, 80, RANDOM()), 2)
+            WHEN 'Declining' THEN
+                CASE decline_type
+                    WHEN 'gradual' THEN
+                        ROUND(UNIFORM(30, 150, RANDOM()) * GREATEST(0.4, 1 - ((month_num - 12) * 0.1)), 2)
+                    WHEN 'sudden' THEN
+                        ROUND(UNIFORM(30, 150, RANDOM()) * IFF(month_num < 16, 1.0, 0.4), 2)
+                    ELSE
+                        ROUND(UNIFORM(30, 150, RANDOM()), 2)
+                END
+            WHEN 'New & Growing' THEN
+                ROUND(UNIFORM(20, 100, RANDOM()) * (1 + month_num * 0.05), 2)
+        END AS transaction_amount,
+        'Merchant_' || LPAD(UNIFORM(1, 1000, RANDOM())::STRING, 4, '0') AS merchant_name,
+        -- Merchant category varies by segment
+        CASE customer_segment
+            WHEN 'High-Value Travelers' THEN
+                ARRAY_CONSTRUCT('Travel', 'Dining', 'Hotels', 'Airlines')[UNIFORM(0, 3, RANDOM())]::STRING
+            WHEN 'Budget-Conscious' THEN
+                ARRAY_CONSTRUCT('Grocery', 'Gas', 'Utilities')[UNIFORM(0, 2, RANDOM())]::STRING
+            ELSE
+                ARRAY_CONSTRUCT('Retail', 'Dining', 'Entertainment', 'Grocery', 'Gas', 'Travel', 'Healthcare', 'Utilities')[UNIFORM(0, 7, RANDOM())]::STRING
+        END AS merchant_category,
+        ARRAY_CONSTRUCT('Online', 'In-Store', 'Mobile')[UNIFORM(0, 2, RANDOM())]::STRING AS channel,
+        CASE WHEN UNIFORM(1, 100, RANDOM()) <= 97 THEN 'approved' ELSE 'declined' END AS status
+    FROM transactions_expanded
 )
 SELECT
     transaction_id,
@@ -236,6 +320,7 @@ SELECT
     channel,
     status
 FROM transactions_with_details
+WHERE transaction_amount > 0
 ORDER BY transaction_date, customer_id;
 
 -- ============================================================================
@@ -363,5 +448,3 @@ FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS;
 SELECT '✓ Transaction generation completed successfully' AS status;
 SELECT 'Transactions loaded directly into BRONZE.BRONZE_TRANSACTIONS' AS next_step;
 SELECT 'Next: Run dbt transformations (Task 3)' AS action;
-
-END;
