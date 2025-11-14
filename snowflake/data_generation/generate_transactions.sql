@@ -11,6 +11,9 @@ USE WAREHOUSE COMPUTE_WH;  -- Consider using larger warehouse (MEDIUM/LARGE) for
 USE DATABASE CUSTOMER_ANALYTICS;
 USE SCHEMA BRONZE;
 
+-- Wrap entire script in BEGIN...END to ensure temp tables persist across statements
+BEGIN
+
 -- ============================================================================
 -- Part A: Create Date Spine (18 months, daily granularity)
 -- ============================================================================
@@ -360,3 +363,5 @@ FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS;
 SELECT '✓ Transaction generation completed successfully' AS status;
 SELECT 'Transactions loaded directly into BRONZE.BRONZE_TRANSACTIONS' AS next_step;
 SELECT 'Next: Run dbt transformations (Task 3)' AS action;
+
+END;
