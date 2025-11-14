@@ -10,9 +10,10 @@ customer_analytics:
   outputs:
     dev:
       type: snowflake
-      account: 'not needed'
-      user: 'not needed'
-      role: DATA_ENGINEER
+      account: BJVVFJJ-KV62879
+      user: JPURRUTIA
+      password: bS5gSP5g6CANsji
+      role: ACCOUNTADMIN
       database: CUSTOMER_ANALYTICS
       warehouse: COMPUTE_WH
       schema: silver

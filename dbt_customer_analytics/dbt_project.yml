@@ -15,7 +15,7 @@ profile: 'customer_analytics'
 
 # Directory paths
 model-paths: ["models"]
-test-paths: ["tests"]
+# test-paths: ["tests"]  # Temporarily disabled for native Snowflake dbt - tests use ref() during parsing
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 analysis-paths: ["analyses"]

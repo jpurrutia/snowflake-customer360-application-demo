@@ -13,7 +13,8 @@ Expected: No rows returned (all date ranges are contiguous)
 Failure: Returns records where gaps exist
 
 Usage:
-  {{ test_scd_type_2_no_gaps(ref('dim_customer'), 'customer_id') }}
+  Would be called via: test_scd_type_2_no_gaps(model_ref, 'customer_id')
+  (Note: ref() temporarily disabled during parsing)
 
 Parameters:
   - model: The dimension model to test
