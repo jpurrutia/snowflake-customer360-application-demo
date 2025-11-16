@@ -20,9 +20,9 @@ sources:
 
     tables:
       # ======================================================================
-      # BRONZE_CUSTOMERS
+      # RAW_CUSTOMERS
       # ======================================================================
-      - name: bronze_customers
+      - name: raw_customers
         description: |
           Raw customer data loaded from S3.
 
@@ -128,9 +128,9 @@ sources:
             description: "Row number in source file for debugging"
 
       # ======================================================================
-      # BRONZE_TRANSACTIONS
+      # RAW_TRANSACTIONS
       # ======================================================================
-      - name: bronze_transactions
+      - name: raw_transactions
         description: |
           Raw transaction data loaded from S3.
 
@@ -223,8 +223,8 @@ sources:
 #
 # Reference sources in models:
 #
-#   SELECT * FROM {{ source('bronze', 'bronze_customers') }}
-#   SELECT * FROM {{ source('bronze', 'bronze_transactions') }}
+#   SELECT * FROM {{ source('bronze', 'raw_customers') }}
+#   SELECT * FROM {{ source('bronze', 'raw_transactions') }}
 #
 # Test sources:
 #

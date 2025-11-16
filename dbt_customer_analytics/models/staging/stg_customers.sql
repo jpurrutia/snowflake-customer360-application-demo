@@ -34,7 +34,7 @@ Downstream:
 
 WITH source AS (
 
-    SELECT * FROM {{ source('bronze', 'bronze_customers') }}
+    SELECT * FROM {{ source('bronze', 'raw_customers') }}
 
 ),
 

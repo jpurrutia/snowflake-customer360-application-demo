@@ -42,7 +42,7 @@ Downstream:
 
 WITH source AS (
 
-    SELECT * FROM {{ source('bronze', 'bronze_transactions') }}
+    SELECT * FROM {{ source('bronze', 'raw_transactions') }}
 
     {% if is_incremental() %}
         -- Only process new records since last dbt run
