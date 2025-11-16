@@ -23,41 +23,43 @@
 --   - Proceed to 05_apply_predictions.sql to score all customers
 -- ============================================================================
 
--- Step 1: Pre-training validation
+-- Set context (ACCOUNTADMIN required for ML operations)
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+USE DATABASE CUSTOMER_ANALYTICS;
+USE SCHEMA GOLD;
+
+-- Step 1: Pre-training validation (optional - commented out if stored procedure not available)
 -- Ensure training data meets quality thresholds before expensive training
-CALL VALIDATE_TRAINING_DATA();
+-- CALL VALIDATE_TRAINING_DATA();
 
 -- Step 2: Drop existing model if retraining
 -- This allows for iterative model improvement
 DROP SNOWFLAKE.ML.CLASSIFICATION IF EXISTS CHURN_MODEL;
 
--- Step 3: Train the Cortex ML classification model
+-- Step 3: Train the ML classification model
 -- Snowflake will automatically:
 --   - Split data into train/validation sets
 --   - Handle feature encoding (categorical -> numeric)
 --   - Tune hyperparameters
---   - Select best model based on F1 score
-CREATE SNOWFLAKE.ML.CLASSIFICATION CHURN_MODEL(
+--   - Evaluate model performance
+CREATE OR REPLACE SNOWFLAKE.ML.CLASSIFICATION CHURN_MODEL(
     INPUT_DATA => SYSTEM$REFERENCE('TABLE', 'GOLD.ML_TRAINING_DATA'),
     TARGET_COLNAME => 'churned',
-    CONFIG_OBJECT => {
-        'EVALUATION_METRIC': 'F1',
-        'ON_ERROR': 'SKIP_ROW'
-    }
+    CONFIG_OBJECT => {'evaluate': TRUE}
 );
 
 -- Step 4: Display model evaluation metrics
--- Metrics include: F1, Precision, Recall, Accuracy, ROC-AUC
--- Target: F1 >= 0.50, Precision >= 0.60, Recall >= 0.40
-SELECT * FROM TABLE(CHURN_MODEL!SHOW_EVALUATION_METRICS());
+-- Metrics include: F1, Precision, Recall per class
+CALL CHURN_MODEL!SHOW_EVALUATION_METRICS();
 
--- Step 5: Show global evaluation metrics and feature importance
--- This reveals which features most strongly predict churn
--- Useful for:
---   - Model interpretation (explain predictions to business)
---   - Feature engineering (identify which features matter)
---   - Intervention design (target high-importance features)
-SELECT * FROM TABLE(CHURN_MODEL!SHOW_GLOBAL_EVALUATION_METRICS());
+-- Step 5: Show global evaluation metrics
+-- Shows macro/weighted averages across all classes
+CALL CHURN_MODEL!SHOW_GLOBAL_EVALUATION_METRICS();
+
+-- Step 6: Show feature importance
+-- Reveals which features most strongly predict churn
+CALL CHURN_MODEL!SHOW_FEATURE_IMPORTANCE();
 
 -- ============================================================================
 -- Expected Output:

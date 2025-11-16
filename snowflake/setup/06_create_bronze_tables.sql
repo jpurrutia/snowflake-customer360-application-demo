@@ -15,7 +15,7 @@ USE SCHEMA BRONZE;
 -- Create BRONZE_CUSTOMERS Table
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS BRONZE_CUSTOMERS (
+CREATE TABLE IF NOT EXISTS RAW_CUSTOMERS (
     -- Customer data columns (raw, as received from CSV)
     customer_id STRING,
     first_name STRING,
@@ -43,16 +43,16 @@ COMMENT = 'Bronze Layer: Raw customer data loaded from S3. No transformations or
 -- ============================================================================
 
 -- Show table structure
-DESC TABLE BRONZE_CUSTOMERS;
+DESC TABLE RAW_CUSTOMERS;
 
 -- Display table information
 SELECT
-    'BRONZE_CUSTOMERS' AS table_name,
+    'RAW_CUSTOMERS' AS table_name,
     COUNT(*) AS current_row_count
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- Show table comment
-SHOW TABLES LIKE 'BRONZE_CUSTOMERS' IN SCHEMA CUSTOMER_ANALYTICS.BRONZE;
+SHOW TABLES LIKE 'RAW_CUSTOMERS' IN SCHEMA CUSTOMER_ANALYTICS.BRONZE;
 
 -- ============================================================================
 -- Grant Permissions
@@ -60,10 +60,10 @@ SHOW TABLES LIKE 'BRONZE_CUSTOMERS' IN SCHEMA CUSTOMER_ANALYTICS.BRONZE;
 
 -- DATA_ENGINEER already has full access as creator
 -- Grant read access to DATA_ANALYST
-GRANT SELECT ON TABLE BRONZE_CUSTOMERS TO ROLE DATA_ANALYST;
+GRANT SELECT ON TABLE RAW_CUSTOMERS TO ROLE DATA_ANALYST;
 
 -- Grant read access to MARKETING_MANAGER (they can see raw data for validation)
-GRANT SELECT ON TABLE BRONZE_CUSTOMERS TO ROLE MARKETING_MANAGER;
+GRANT SELECT ON TABLE RAW_CUSTOMERS TO ROLE MARKETING_MANAGER;
 
 -- ============================================================================
 -- Table Design Notes
@@ -89,5 +89,5 @@ GRANT SELECT ON TABLE BRONZE_CUSTOMERS TO ROLE MARKETING_MANAGER;
 -- Next Steps
 -- ============================================================================
 
-SELECT '✓ Bronze table BRONZE_CUSTOMERS created successfully' AS status;
+SELECT '✓ Bronze table RAW_CUSTOMERS created successfully' AS status;
 SELECT 'Next: Load data using snowflake/load/load_customers_bulk.sql' AS next_step;

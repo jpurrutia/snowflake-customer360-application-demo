@@ -27,6 +27,12 @@ Validation:
 ============================================================================
 */
 
+-- Set context
+USE ROLE DATA_ENGINEER;
+USE WAREHOUSE COMPUTE_WH;
+USE DATABASE CUSTOMER_ANALYTICS;
+USE SCHEMA GOLD;
+
 -- Drop existing table if re-running
 DROP TABLE IF EXISTS GOLD.ML_TRAINING_DATA;
 

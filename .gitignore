@@ -120,3 +120,6 @@ temp/
 
 # Commands with variables
 snowflake/setup/snowsql_commands.sh
+
+# Claude files
+.claude

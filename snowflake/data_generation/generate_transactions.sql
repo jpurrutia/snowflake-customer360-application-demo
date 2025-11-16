@@ -54,7 +54,7 @@ SELECT
         WHEN 'Declining' THEN UNIFORM(20, 40, RANDOM())
         WHEN 'New & Growing' THEN UNIFORM(25, 50, RANDOM())
     END AS monthly_transactions
-FROM BRONZE.BRONZE_CUSTOMERS c
+FROM BRONZE.RAW_CUSTOMERS c
 CROSS JOIN (
     SELECT DISTINCT transaction_date, month_num
     FROM date_spine
@@ -210,10 +210,10 @@ FROM transactions_with_details;
 -- Part E: Load Directly into Bronze Table (Single Statement - No Temp Tables)
 -- ============================================================================
 
-SELECT 'Part E: Loading into BRONZE.BRONZE_TRANSACTIONS...' AS step;
+SELECT 'Part E: Loading into BRONZE.RAW_TRANSACTIONS...' AS step;
 
 -- Generate and insert all transactions in a single statement to avoid temp table issues
-INSERT INTO CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS (
+INSERT INTO CUSTOMER_ANALYTICS.BRONZE.RAW_TRANSACTIONS (
     transaction_id,
     customer_id,
     transaction_date,
@@ -253,7 +253,7 @@ customer_monthly_volume AS (
             WHEN 'Declining' THEN UNIFORM(20, 40, RANDOM())
             WHEN 'New & Growing' THEN UNIFORM(25, 50, RANDOM())
         END AS monthly_transactions
-    FROM BRONZE.BRONZE_CUSTOMERS c
+    FROM BRONZE.RAW_CUSTOMERS c
     CROSS JOIN monthly_dates d
 ),
 -- Expand to individual transactions using GENERATOR
@@ -437,14 +437,14 @@ SELECT 'Verifying data load...' AS step;
 
 -- Count records in Bronze table
 SELECT
-    'Records Loaded into BRONZE_TRANSACTIONS' AS metric,
+    'Records Loaded into RAW_TRANSACTIONS' AS metric,
     COUNT(*) AS value
-FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS;
+FROM CUSTOMER_ANALYTICS.BRONZE.RAW_TRANSACTIONS;
 
 -- ============================================================================
 -- Completion Message
 -- ============================================================================
 
 SELECT '✓ Transaction generation completed successfully' AS status;
-SELECT 'Transactions loaded directly into BRONZE.BRONZE_TRANSACTIONS' AS next_step;
+SELECT 'Transactions loaded directly into BRONZE.RAW_TRANSACTIONS' AS next_step;
 SELECT 'Next: Run dbt transformations (Task 3)' AS action;

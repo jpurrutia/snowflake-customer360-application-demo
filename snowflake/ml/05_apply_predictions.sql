@@ -15,11 +15,16 @@
 --
 -- Prerequisites:
 --   - CHURN_MODEL exists and validated (03 and 04 scripts)
---   - GOLD.CUSTOMER_360_PROFILE exists (dbt model)
---   - GOLD.CUSTOMER_SEGMENTS exists (dbt model)
+--   - GOLD.ML_TRAINING_DATA exists (with same schema as training)
 -- ============================================================================
 
--- Apply model predictions to all active customers
+-- Set context
+USE ROLE ACCOUNTADMIN;
+USE WAREHOUSE COMPUTE_WH;
+USE DATABASE CUSTOMER_ANALYTICS;
+USE SCHEMA GOLD;
+
+-- Apply model predictions to all customers
 CREATE OR REPLACE TABLE GOLD.CHURN_PREDICTIONS AS
 WITH customer_features AS (
     SELECT

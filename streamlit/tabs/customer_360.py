@@ -199,8 +199,9 @@ def render(execute_query, conn):
             t.channel,
             t.status
         FROM GOLD.FCT_TRANSACTIONS t
+        JOIN GOLD.DIM_CUSTOMER d ON t.customer_key = d.customer_key
         JOIN GOLD.DIM_MERCHANT_CATEGORY c ON t.merchant_category_key = c.category_key
-        WHERE t.customer_id = {customer_id}
+        WHERE d.customer_id = '{customer_id}' AND d.is_current = TRUE
         ORDER BY t.transaction_date DESC
         LIMIT 1000
     """

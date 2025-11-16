@@ -29,7 +29,7 @@ AS
 $$
 def main(session, num_customers, seed):
     """
-    Generate synthetic customer data and write directly to BRONZE_CUSTOMERS table.
+    Generate synthetic customer data and write directly to RAW_CUSTOMERS table.
 
     Args:
         session: Snowpark session object
@@ -159,7 +159,7 @@ def main(session, num_customers, seed):
     # Write to Snowflake table
     session.write_pandas(
         df,
-        table_name="BRONZE_CUSTOMERS",
+        table_name="RAW_CUSTOMERS",
         database="CUSTOMER_ANALYTICS",
         schema="BRONZE",
         overwrite=True,
@@ -172,7 +172,7 @@ def main(session, num_customers, seed):
     avg_credit_limit = df["CREDIT_LIMIT"].mean()
 
     # Build summary message
-    summary = f"✓ Successfully generated {num_customers} customers in BRONZE.BRONZE_CUSTOMERS\n\n"
+    summary = f"✓ Successfully generated {num_customers} customers in BRONZE.RAW_CUSTOMERS\n\n"
     summary += "Segment Distribution:\n"
     for segment, count in sorted(segment_distribution.items()):
         pct = count / num_customers * 100
@@ -211,14 +211,14 @@ GRANT USAGE ON PROCEDURE GENERATE_CUSTOMERS(INT, INT) TO ROLE ACCOUNTADMIN;
 -- ============================================================================
 
 -- Check customer count
--- SELECT COUNT(*) FROM BRONZE.BRONZE_CUSTOMERS;
+-- SELECT COUNT(*) FROM BRONZE.RAW_CUSTOMERS;
 
 -- Check segment distribution
 -- SELECT
 --     CUSTOMER_SEGMENT,
 --     COUNT(*) AS customer_count,
 --     ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
--- FROM BRONZE.BRONZE_CUSTOMERS
+-- FROM BRONZE.RAW_CUSTOMERS
 -- GROUP BY CUSTOMER_SEGMENT
 -- ORDER BY customer_count DESC;
 
@@ -227,7 +227,7 @@ GRANT USAGE ON PROCEDURE GENERATE_CUSTOMERS(INT, INT) TO ROLE ACCOUNTADMIN;
 --     CARD_TYPE,
 --     COUNT(*) AS customer_count,
 --     ROUND(AVG(CREDIT_LIMIT), 2) AS avg_credit_limit
--- FROM BRONZE.BRONZE_CUSTOMERS
+-- FROM BRONZE.RAW_CUSTOMERS
 -- GROUP BY CARD_TYPE;
 
 -- ============================================================================
