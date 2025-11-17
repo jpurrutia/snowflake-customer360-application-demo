@@ -160,12 +160,33 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         })
 
         # Get Snowflake account and token from connection
-        # Format: account.snowflakecomputing.com
+        # For Streamlit in Snowflake, get the session which has auth built-in
+        sf_conn = st.connection("snowflake")
+
+        # Get account from connection
         account = conn.account
         host = f"{account}.snowflakecomputing.com"
 
-        # Get session token for authentication
-        token = conn.rest.token
+        # Get session token - try multiple paths as structure may vary
+        token = None
+        try:
+            # Path 1: Try from st.connection session
+            session = sf_conn.session()
+            if hasattr(session, '_conn') and hasattr(session._conn, '_rest'):
+                token = session._conn._rest._token
+        except:
+            pass
+
+        if not token:
+            try:
+                # Path 2: Try from passed connection object
+                if hasattr(conn, '_rest') and hasattr(conn._rest, '_token'):
+                    token = conn._rest._token
+            except:
+                pass
+
+        if not token:
+            raise AttributeError("Cannot extract authentication token from Snowflake connection. Cortex Analyst requires REST API token.")
 
         # Cortex Analyst REST API endpoint
         url = f"https://{host}/api/v2/cortex/analyst/message"

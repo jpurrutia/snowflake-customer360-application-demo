@@ -21,22 +21,30 @@ st.set_page_config(
 
 @st.cache_resource
 def get_snowflake_connection():
-    """Create cached Snowflake connection"""
+    """Create cached Snowflake connection using Streamlit's built-in method"""
     try:
-        conn = snowflake.connector.connect(
-            account=os.getenv("SNOWFLAKE_ACCOUNT"),
-            user=os.getenv("SNOWFLAKE_USER"),
-            password=os.getenv("SNOWFLAKE_PASSWORD"),
-            warehouse="COMPUTE_WH",
-            database="CUSTOMER_ANALYTICS",
-            schema="GOLD",
-            role="DATA_ANALYST",
-            client_session_keep_alive=True,
-        )
-        return conn
+        # For Streamlit in Snowflake, use st.connection() which handles auth automatically
+        # This provides access to the session token needed for Cortex Analyst
+        conn = st.connection("snowflake")
+        # Return the raw connection object for compatibility
+        return conn.raw_connection
     except Exception as e:
-        st.error(f"Failed to connect to Snowflake: {e}")
-        st.stop()
+        # Fallback to environment variable-based connection for local development
+        try:
+            conn = snowflake.connector.connect(
+                account=os.getenv("SNOWFLAKE_ACCOUNT"),
+                user=os.getenv("SNOWFLAKE_USER"),
+                password=os.getenv("SNOWFLAKE_PASSWORD"),
+                warehouse="COMPUTE_WH",
+                database="CUSTOMER_ANALYTICS",
+                schema="GOLD",
+                role="DATA_ANALYST",
+                client_session_keep_alive=True,
+            )
+            return conn
+        except Exception as e2:
+            st.error(f"Failed to connect to Snowflake: {e2}")
+            st.stop()
 
 
 def execute_query(query, params=None):
