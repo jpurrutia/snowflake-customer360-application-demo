@@ -11,6 +11,9 @@ tables:
       database: CUSTOMER_ANALYTICS
       schema: GOLD
       table: CUSTOMER_360_PROFILE
+    primary_key:
+      columns:
+        - customer_id
     dimensions:
       - name: customer_id
         synonyms:
@@ -251,6 +254,9 @@ tables:
       database: CUSTOMER_ANALYTICS
       schema: GOLD
       table: FCT_TRANSACTIONS
+    primary_key:
+      columns:
+        - transaction_id
     dimensions:
       - name: transaction_id
         synonyms:
@@ -340,6 +346,9 @@ tables:
       database: CUSTOMER_ANALYTICS
       schema: GOLD
       table: DIM_MERCHANT_CATEGORY
+    primary_key:
+      columns:
+        - category_key
     dimensions:
       - name: category_key
         synonyms:
@@ -377,23 +386,23 @@ tables:
 # Relationships - Define how tables join together
 # ===========================================================================
 relationships:
-  - name: customer_to_transactions
-    left_table: customer_profile
-    right_table: transactions
+  - name: transactions_to_customer
+    left_table: transactions
+    right_table: customer_profile
     relationship_columns:
       - left_column: customer_key
         right_column: customer_key
     join_type: left_outer
-    relationship_type: one_to_many
+    relationship_type: many_to_one
 
-  - name: category_to_transactions
-    left_table: merchant_categories
-    right_table: transactions
+  - name: transactions_to_category
+    left_table: transactions
+    right_table: merchant_categories
     relationship_columns:
-      - left_column: category_key
-        right_column: merchant_category_key
+      - left_column: merchant_category_key
+        right_column: category_key
     join_type: left_outer
-    relationship_type: one_to_many
+    relationship_type: many_to_one
 
 # ===========================================================================
 # Verified queries - Example queries that Cortex Analyst can reference

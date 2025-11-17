@@ -158,9 +158,10 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
                 # Add analyst response if it exists
                 response = item.get('response', {})
                 if response and not response.get('error'):
+                    interpretation = response.get('interpretation') or "Generated SQL query"
                     messages.append({
                         "role": "analyst",
-                        "content": response.get('interpretation') or f"Generated SQL query"
+                        "content": [{"type": "text", "text": interpretation}]
                     })
 
         # Add current question
