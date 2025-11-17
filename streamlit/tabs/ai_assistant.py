@@ -168,28 +168,21 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         host = f"{account}.snowflakecomputing.com"
 
         # Get session token for REST API authentication
-        # Try common token locations in session object
+        # Based on debug output: session._conn._conn is the actual SnowflakeConnection
         token = None
 
-        # Debug: Show session structure to find token location
-        st.write("DEBUG - Session attributes:", dir(session))
-        st.write("DEBUG - Has _conn?", hasattr(session, '_conn'))
-
         try:
-            # Common path: session._conn._rest._token
-            if hasattr(session, '_conn'):
-                st.write("DEBUG - _conn attributes:", dir(session._conn))
-                if hasattr(session._conn, '_rest'):
-                    st.write("DEBUG - _rest attributes:", dir(session._conn._rest))
-                    if hasattr(session._conn._rest, '_token'):
-                        token = session._conn._rest._token
-                        st.write("DEBUG - Token found via _conn._rest._token")
+            # Path: session._conn._conn._rest._token (actual Snowflake connection)
+            if hasattr(session, '_conn') and hasattr(session._conn, '_conn'):
+                actual_conn = session._conn._conn
+                if hasattr(actual_conn, '_rest') and hasattr(actual_conn._rest, '_token'):
+                    token = actual_conn._rest._token
+                    st.success("✅ Authentication token retrieved successfully")
         except Exception as e:
             st.write(f"DEBUG - Error accessing token: {e}")
 
         if not token:
-            st.error("❌ Cannot extract authentication token from Snowflake session. Please check debug output above.")
-            st.info("💡 Using mock implementation as fallback")
+            st.warning("⚠️ Cannot extract authentication token from Snowflake session. Using mock implementation.")
             return call_cortex_analyst_mock(conn, question)
 
         # Cortex Analyst REST API endpoint
