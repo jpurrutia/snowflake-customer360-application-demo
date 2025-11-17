@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import json
 
 
 # Suggested questions organized by use case
@@ -128,65 +129,116 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
         }
 
 
-def call_cortex_analyst(conn, question: str) -> dict:
+def call_cortex_analyst(conn, question: str, conversation_history: list = None) -> dict:
     """
     Call Snowflake Cortex Analyst to answer natural language question.
 
     Args:
         conn: Snowflake connection
         question: Natural language question
+        conversation_history: Optional list of previous Q&A pairs for context
 
     Returns:
-        dict with keys: sql, results, error
+        dict with keys: sql, results, interpretation, error
     """
-    # NOTE: For now, fallback to mock implementation
-    # Replace with actual Cortex Analyst call when available
+    try:
+        cursor = conn.cursor()
 
-    # Actual Cortex Analyst implementation (commented out until enabled):
-    # try:
-    #     cursor = conn.cursor()
-    #
-    #     analyst_query = f"""
-    #         SELECT SNOWFLAKE.CORTEX.ANALYST(
-    #             '{question}',
-    #             'CUSTOMER_ANALYTICS.GOLD.SEMANTIC_STAGE/semantic_model.yaml'
-    #         ) AS response
-    #     """
-    #
-    #     cursor.execute(analyst_query)
-    #     response = cursor.fetchone()[0]
-    #
-    #     generated_sql = response.get('sql', '')
-    #
-    #     if generated_sql:
-    #         cursor.execute(generated_sql)
-    #         results = cursor.fetchall()
-    #         columns = [desc[0] for desc in cursor.description]
-    #         df = pd.DataFrame(results, columns=columns)
-    #         cursor.close()
-    #
-    #         return {
-    #             'sql': generated_sql,
-    #             'results': df,
-    #             'error': None
-    #         }
-    #     else:
-    #         cursor.close()
-    #         return {
-    #             'sql': None,
-    #             'results': None,
-    #             'error': 'No SQL generated'
-    #         }
-    #
-    # except Exception as e:
-    #     return {
-    #         'sql': None,
-    #         'results': None,
-    #         'error': str(e)
-    #     }
+        # Build conversation history for context (multi-turn conversations)
+        messages = []
+        if conversation_history:
+            for item in conversation_history[-3:]:  # Last 3 exchanges for context
+                messages.append({
+                    "role": "user",
+                    "content": [{"type": "text", "text": item.get('question', '')}]
+                })
+                if item.get('response'):
+                    messages.append({
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": item.get('response', '')}]
+                    })
 
-    # Use mock for now
-    return call_cortex_analyst_mock(conn, question)
+        # Add current question
+        messages.append({
+            "role": "user",
+            "content": [{"type": "text", "text": question}]
+        })
+
+        # Call Cortex Analyst using COMPLETE function
+        # Reference: https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst
+        analyst_query = f"""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'analyst',
+                {json.dumps(messages)},
+                {{
+                    'semantic_model_file': '@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml'
+                }}
+            ) AS response
+        """
+
+        cursor.execute(analyst_query)
+        result = cursor.fetchone()
+
+        if not result or not result[0]:
+            cursor.close()
+            return {
+                'sql': None,
+                'results': None,
+                'interpretation': None,
+                'error': 'No response from Cortex Analyst'
+            }
+
+        # Parse Cortex Analyst response
+        response_json = json.loads(result[0]) if isinstance(result[0], str) else result[0]
+
+        # Extract SQL and interpretation from response
+        generated_sql = None
+        interpretation = None
+
+        if isinstance(response_json, dict):
+            # Response structure may vary - handle different formats
+            generated_sql = response_json.get('sql') or response_json.get('query')
+            interpretation = response_json.get('interpretation') or response_json.get('explanation')
+
+        if not generated_sql:
+            cursor.close()
+            return {
+                'sql': None,
+                'results': None,
+                'interpretation': interpretation,
+                'error': 'Cortex Analyst did not generate SQL for this question'
+            }
+
+        # Execute the generated SQL
+        cursor.execute(generated_sql)
+        results = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        df = pd.DataFrame(results, columns=columns)
+        cursor.close()
+
+        return {
+            'sql': generated_sql,
+            'results': df,
+            'interpretation': interpretation,
+            'error': None
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Check if Cortex Analyst is not enabled
+        if 'CORTEX' in error_msg.upper() and ('not found' in error_msg.lower() or 'does not exist' in error_msg.lower()):
+            st.warning("⚠️ Cortex Analyst not available. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
+
+        # Check if semantic model file not found
+        if 'semantic' in error_msg.lower() and 'not found' in error_msg.lower():
+            st.warning("⚠️ Semantic model not found. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
+
+        # Other errors - still try mock as fallback
+        st.warning(f"⚠️ Cortex Analyst error: {error_msg}. Using mock implementation.")
+        return call_cortex_analyst_mock(conn, question)
 
 
 def render(execute_query, conn):
@@ -203,7 +255,7 @@ def render(execute_query, conn):
     st.title("🤖 AI Assistant")
     st.markdown("Ask questions about your customers in plain English")
 
-    st.info("🚧 **Note**: Currently using mock implementation. Cortex Analyst integration coming soon!")
+    st.success("✨ **Powered by Snowflake Cortex Analyst** - Natural language to SQL with AI")
 
     # ========== SUGGESTED QUESTIONS ==========
 
@@ -257,7 +309,12 @@ def render(execute_query, conn):
 
     if ask_button and question:
         with st.spinner("🤔 Thinking..."):
-            response = call_cortex_analyst(conn, question)
+            # Get conversation history for context
+            conversation_history = st.session_state.get('query_history', [])
+
+            # Call Cortex Analyst with conversation context
+            response = call_cortex_analyst(conn, question, conversation_history)
+
             st.session_state['last_response'] = response
             st.session_state['last_question'] = question
 
@@ -294,6 +351,10 @@ def render(execute_query, conn):
         else:
             # Display question
             st.markdown(f"**Question:** {question}")
+
+            # Display AI interpretation if available
+            if response.get('interpretation'):
+                st.info(f"**AI Interpretation:** {response['interpretation']}")
 
             # Display generated SQL
             with st.expander("🔍 View Generated SQL", expanded=False):
@@ -376,5 +437,7 @@ def render(execute_query, conn):
 
         5. **Filters:** Combine multiple criteria: "Premium cardholders in Texas with declining spend"
 
-        **Powered by Snowflake Cortex Analyst** (mock implementation currently active)
+        **Powered by Snowflake Cortex Analyst** - Real-time natural language to SQL using AI
+
+        *Note: If Cortex Analyst is not available in your Snowflake account, the system will automatically fallback to a mock implementation with pre-defined queries.*
         """)

@@ -1,0 +1,495 @@
+---
+name: customer_analytics
+description: Customer 360 Analytics semantic model for credit card customer intelligence and post-acquisition analysis
+tables:
+  # =========================================================================
+  # Customer 360 Profile - Main customer view
+  # =========================================================================
+  - name: customer_profile
+    description: Comprehensive customer profile combining demographics, segments, and behavioral metrics
+    base_table:
+      database: CUSTOMER_ANALYTICS
+      schema: GOLD
+      table: CUSTOMER_360_PROFILE
+    dimensions:
+      - name: customer_id
+        synonyms:
+          - customer ID
+          - customer number
+          - cust id
+        description: Unique identifier for each customer
+        expr: customer_id
+        data_type: TEXT
+        unique: true
+
+      - name: full_name
+        synonyms:
+          - name
+          - customer name
+        description: Customer's full name
+        expr: full_name
+        data_type: TEXT
+
+      - name: email
+        synonyms:
+          - email address
+          - customer email
+        description: Customer's email address
+        expr: email
+        data_type: TEXT
+
+      - name: age
+        synonyms:
+          - customer age
+        description: Customer's age in years
+        expr: age
+        data_type: NUMBER
+
+      - name: state
+        synonyms:
+          - location
+          - region
+          - customer state
+        description: Customer's state of residence
+        expr: state
+        data_type: TEXT
+
+      - name: city
+        synonyms:
+          - customer city
+          - location
+        description: Customer's city of residence
+        expr: city
+        data_type: TEXT
+
+      - name: employment_status
+        synonyms:
+          - job status
+          - employment
+        description: Customer's employment status (e.g., Employed, Self-Employed)
+        expr: employment_status
+        data_type: TEXT
+
+      - name: card_type
+        synonyms:
+          - credit card type
+          - card tier
+        description: Type of credit card (Standard or Premium)
+        expr: card_type
+        data_type: TEXT
+
+      - name: customer_segment
+        synonyms:
+          - segment
+          - customer type
+          - behavioral segment
+        description: Behavioral customer segment (High-Value Travelers, Stable Mid-Spenders, Budget-Conscious, Declining, New & Growing)
+        expr: customer_segment
+        data_type: TEXT
+
+      - name: spending_profile
+        synonyms:
+          - spending pattern
+          - spending behavior
+        description: Customer spending pattern (Travel-Focused, Necessity-Focused, Balanced)
+        expr: spending_profile
+        data_type: TEXT
+
+      - name: recency_status
+        synonyms:
+          - activity status
+          - engagement status
+        description: Customer activity level based on recency (Active, Recent, At Risk, Inactive)
+        expr: recency_status
+        data_type: TEXT
+
+      - name: churn_risk_category
+        synonyms:
+          - churn risk
+          - retention risk
+          - attrition risk
+        description: ML-predicted churn risk category (High Risk, Medium Risk, Low Risk)
+        expr: churn_risk_category
+        data_type: TEXT
+
+      - name: spending_consistency
+        synonyms:
+          - spending stability
+        description: How consistent customer spending is over time (Consistent, Moderate, Variable)
+        expr: spending_consistency
+        data_type: TEXT
+
+    measures:
+      - name: lifetime_value
+        synonyms:
+          - LTV
+          - total spend
+          - customer value
+          - total customer spend
+        description: Total amount spent by customer since account opening
+        expr: lifetime_value
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: avg_transaction_value
+        synonyms:
+          - average transaction
+          - ATV
+          - avg spend per transaction
+        description: Average amount per transaction for this customer
+        expr: avg_transaction_value
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: total_transactions
+        synonyms:
+          - transaction count
+          - number of transactions
+        description: Total number of transactions made by customer
+        expr: total_transactions
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: credit_limit
+        synonyms:
+          - credit line
+          - available credit
+        description: Customer's credit card limit
+        expr: credit_limit
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: days_since_last_transaction
+        synonyms:
+          - days inactive
+          - recency
+          - last activity
+        description: Number of days since customer's last transaction
+        expr: days_since_last_transaction
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: spend_last_90_days
+        synonyms:
+          - recent spend
+          - last 90 days spend
+          - quarterly spend
+        description: Total spend in the last 90 days
+        expr: spend_last_90_days
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: spend_change_pct
+        synonyms:
+          - spending trend
+          - spend momentum
+          - spending change
+        description: Percentage change in spending (recent vs prior 90-day period)
+        expr: spend_change_pct
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: churn_risk_score
+        synonyms:
+          - churn probability
+          - risk score
+        description: ML-predicted churn risk score (0-100)
+        expr: churn_risk_score
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: credit_utilization_pct
+        synonyms:
+          - utilization
+          - credit usage
+        description: Credit utilization percentage (monthly spend / credit limit)
+        expr: credit_utilization_pct
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: travel_spend_pct
+        synonyms:
+          - travel spending percentage
+          - leisure spend
+        description: Percentage of total spend on travel and leisure
+        expr: travel_spend_pct
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: necessities_spend_pct
+        synonyms:
+          - essential spend percentage
+          - necessities spending
+        description: Percentage of total spend on necessities (grocery, gas, utilities)
+        expr: necessities_spend_pct
+        data_type: NUMBER
+        default_aggregation: avg
+
+      - name: customer_count
+        synonyms:
+          - number of customers
+          - total customers
+          - count of customers
+        description: Count of customers
+        expr: customer_id
+        data_type: NUMBER
+        default_aggregation: count
+
+  # =========================================================================
+  # Transactions Fact Table
+  # =========================================================================
+  - name: transactions
+    description: Detailed transaction history for all customers
+    base_table:
+      database: CUSTOMER_ANALYTICS
+      schema: GOLD
+      table: FCT_TRANSACTIONS
+    dimensions:
+      - name: transaction_id
+        synonyms:
+          - txn id
+          - transaction number
+        description: Unique transaction identifier
+        expr: transaction_id
+        data_type: TEXT
+        unique: true
+
+      - name: merchant_name
+        synonyms:
+          - merchant
+          - vendor
+          - store
+        description: Name of the merchant where transaction occurred
+        expr: merchant_name
+        data_type: TEXT
+
+      - name: channel
+        synonyms:
+          - transaction channel
+          - payment channel
+        description: Channel used for transaction (Online, In-Store, Mobile)
+        expr: channel
+        data_type: TEXT
+
+      - name: status
+        synonyms:
+          - transaction status
+        description: Transaction status (Completed, Pending, Declined)
+        expr: status
+        data_type: TEXT
+
+    time_dimensions:
+      - name: transaction_date
+        synonyms:
+          - date
+          - transaction time
+          - purchase date
+        description: Date when transaction occurred
+        expr: transaction_date
+        data_type: DATE
+
+    measures:
+      - name: transaction_amount
+        synonyms:
+          - amount
+          - spend
+          - purchase amount
+          - transaction value
+        description: Amount of the transaction in dollars
+        expr: transaction_amount
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: transaction_count
+        synonyms:
+          - number of transactions
+          - txn count
+          - count of transactions
+        description: Count of transactions
+        expr: transaction_id
+        data_type: NUMBER
+        default_aggregation: count
+
+  # =========================================================================
+  # Merchant Category Dimension
+  # =========================================================================
+  - name: merchant_categories
+    description: Merchant category classifications for spend analysis
+    base_table:
+      database: CUSTOMER_ANALYTICS
+      schema: GOLD
+      table: DIM_MERCHANT_CATEGORY
+    dimensions:
+      - name: category_name
+        synonyms:
+          - category
+          - merchant category
+          - spending category
+        description: Detailed merchant category (e.g., Travel, Dining, Grocery)
+        expr: category_name
+        data_type: TEXT
+
+      - name: category_group
+        synonyms:
+          - category type
+          - spending type
+        description: High-level category grouping (Leisure, Necessities, Retail, Other)
+        expr: category_group
+        data_type: TEXT
+
+      - name: spending_type
+        synonyms:
+          - expense type
+        description: Type of spending (Essential, Discretionary, Variable)
+        expr: spending_type
+        data_type: TEXT
+
+# ===========================================================================
+# Relationships between tables
+# ===========================================================================
+relationships:
+  - name: customer_to_transactions
+    left_table: customer_profile
+    left_column: customer_key
+    right_table: transactions
+    right_column: customer_key
+
+  - name: transactions_to_merchant_category
+    left_table: transactions
+    left_column: merchant_category_key
+    right_table: merchant_categories
+    right_column: category_key
+
+# ===========================================================================
+# Verified queries - Example queries that Cortex Analyst can reference
+# ===========================================================================
+verified_queries:
+  - name: top_customers_by_ltv
+    question: Who are the top 10 customers by lifetime value?
+    sql: |
+      SELECT
+        customer_id,
+        full_name,
+        customer_segment,
+        lifetime_value,
+        total_transactions
+      FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
+      ORDER BY lifetime_value DESC
+      LIMIT 10
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: high_churn_risk_customers
+    question: Which customers are at high risk of churning?
+    sql: |
+      SELECT
+        customer_id,
+        full_name,
+        customer_segment,
+        churn_risk_score,
+        churn_risk_category,
+        days_since_last_transaction,
+        spend_change_pct
+      FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
+      WHERE churn_risk_category = 'High Risk'
+      ORDER BY churn_risk_score DESC
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: segment_summary
+    question: Give me a summary of customer segments
+    sql: |
+      SELECT
+        customer_segment,
+        COUNT(*) AS customer_count,
+        AVG(lifetime_value) AS avg_lifetime_value,
+        AVG(churn_risk_score) AS avg_churn_risk,
+        SUM(lifetime_value) AS total_ltv
+      FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
+      GROUP BY customer_segment
+      ORDER BY total_ltv DESC
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: recent_transaction_volume
+    question: What are the total transactions by month?
+    sql: |
+      SELECT
+        DATE_TRUNC('month', transaction_date) AS month,
+        COUNT(*) AS transaction_count,
+        SUM(transaction_amount) AS total_amount,
+        AVG(transaction_amount) AS avg_amount
+      FROM CUSTOMER_ANALYTICS.GOLD.FCT_TRANSACTIONS
+      WHERE status = 'Completed'
+      GROUP BY month
+      ORDER BY month DESC
+      LIMIT 12
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: spend_by_category
+    question: How much are customers spending by category?
+    sql: |
+      SELECT
+        mc.category_name,
+        mc.category_group,
+        COUNT(*) AS transaction_count,
+        SUM(t.transaction_amount) AS total_spend
+      FROM CUSTOMER_ANALYTICS.GOLD.FCT_TRANSACTIONS t
+      JOIN CUSTOMER_ANALYTICS.GOLD.DIM_MERCHANT_CATEGORY mc
+        ON t.merchant_category_key = mc.category_key
+      WHERE t.status = 'Completed'
+      GROUP BY mc.category_name, mc.category_group
+      ORDER BY total_spend DESC
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: declining_customers_analysis
+    question: Show me customers in the Declining segment with details
+    sql: |
+      SELECT
+        customer_id,
+        full_name,
+        state,
+        lifetime_value,
+        spend_last_90_days,
+        spend_prior_90_days,
+        spend_change_pct,
+        days_since_last_transaction,
+        churn_risk_category
+      FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
+      WHERE customer_segment = 'Declining'
+      ORDER BY spend_change_pct ASC
+      LIMIT 50
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: premium_card_performance
+    question: How are premium card customers performing compared to standard?
+    sql: |
+      SELECT
+        card_type,
+        COUNT(*) AS customer_count,
+        AVG(lifetime_value) AS avg_ltv,
+        AVG(credit_utilization_pct) AS avg_utilization,
+        AVG(total_transactions) AS avg_txn_count,
+        SUM(CASE WHEN churn_risk_category = 'High Risk' THEN 1 ELSE 0 END) AS high_risk_count
+      FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
+      GROUP BY card_type
+    verified_at: 2025-01-16
+    verified_by: system
+
+  - name: state_distribution
+    question: Which states have the most customers?
+    sql: |
+      SELECT
+        state,
+        COUNT(*) AS customer_count,
+        AVG(lifetime_value) AS avg_ltv,
+        SUM(lifetime_value) AS total_ltv
+      FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
+      GROUP BY state
+      ORDER BY customer_count DESC
+      LIMIT 10
+    verified_at: 2025-01-16
+    verified_by: system
