@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
-from utils import format_dataframe_columns
+from .utils import format_dataframe_columns
 
 def render(execute_query):
     """Render Segment Explorer tab"""

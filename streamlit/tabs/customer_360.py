@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from utils import format_dataframe_columns
+from .utils import format_dataframe_columns
 
 
 def render(execute_query, conn):

@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 import _snowflake
 from snowflake.snowpark.context import get_active_session
-from utils import format_dataframe_columns, format_column_name
+from .utils import format_dataframe_columns, format_column_name
 
 
 # Suggested questions organized by use case
