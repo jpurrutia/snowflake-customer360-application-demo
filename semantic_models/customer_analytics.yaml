@@ -22,6 +22,13 @@ tables:
         data_type: TEXT
         unique: true
 
+      - name: customer_key
+        synonyms:
+          - customer key
+        description: Surrogate key for customer dimension
+        expr: customer_key
+        data_type: TEXT
+
       - name: full_name
         synonyms:
           - name
@@ -254,6 +261,20 @@ tables:
         data_type: TEXT
         unique: true
 
+      - name: customer_key
+        synonyms:
+          - customer key
+        description: Foreign key to customer dimension
+        expr: customer_key
+        data_type: TEXT
+
+      - name: merchant_category_key
+        synonyms:
+          - category key
+        description: Foreign key to merchant category dimension
+        expr: merchant_category_key
+        data_type: NUMBER
+
       - name: merchant_name
         synonyms:
           - merchant
@@ -320,6 +341,14 @@ tables:
       schema: GOLD
       table: DIM_MERCHANT_CATEGORY
     dimensions:
+      - name: category_key
+        synonyms:
+          - category key
+        description: Unique identifier for merchant category
+        expr: category_key
+        data_type: NUMBER
+        unique: true
+
       - name: category_name
         synonyms:
           - category
@@ -345,20 +374,26 @@ tables:
         data_type: TEXT
 
 # ===========================================================================
-# Relationships between tables
+# Relationships - Define how tables join together
 # ===========================================================================
 relationships:
   - name: customer_to_transactions
     left_table: customer_profile
-    left_column: customer_key
     right_table: transactions
-    right_column: customer_key
+    relationship_columns:
+      - left_column: customer_key
+        right_column: customer_key
+    join_type: left_outer
+    relationship_type: one_to_many
 
-  - name: transactions_to_merchant_category
-    left_table: transactions
-    left_column: merchant_category_key
-    right_table: merchant_categories
-    right_column: category_key
+  - name: category_to_transactions
+    left_table: merchant_categories
+    right_table: transactions
+    relationship_columns:
+      - left_column: category_key
+        right_column: merchant_category_key
+    join_type: left_outer
+    relationship_type: one_to_many
 
 # ===========================================================================
 # Verified queries - Example queries that Cortex Analyst can reference
@@ -376,8 +411,6 @@ verified_queries:
       FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
       ORDER BY lifetime_value DESC
       LIMIT 10
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: high_churn_risk_customers
     question: Which customers are at high risk of churning?
@@ -393,8 +426,6 @@ verified_queries:
       FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
       WHERE churn_risk_category = 'High Risk'
       ORDER BY churn_risk_score DESC
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: segment_summary
     question: Give me a summary of customer segments
@@ -408,8 +439,6 @@ verified_queries:
       FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
       GROUP BY customer_segment
       ORDER BY total_ltv DESC
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: recent_transaction_volume
     question: What are the total transactions by month?
@@ -424,8 +453,6 @@ verified_queries:
       GROUP BY month
       ORDER BY month DESC
       LIMIT 12
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: spend_by_category
     question: How much are customers spending by category?
@@ -441,8 +468,6 @@ verified_queries:
       WHERE t.status = 'Completed'
       GROUP BY mc.category_name, mc.category_group
       ORDER BY total_spend DESC
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: declining_customers_analysis
     question: Show me customers in the Declining segment with details
@@ -461,8 +486,6 @@ verified_queries:
       WHERE customer_segment = 'Declining'
       ORDER BY spend_change_pct ASC
       LIMIT 50
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: premium_card_performance
     question: How are premium card customers performing compared to standard?
@@ -476,8 +499,6 @@ verified_queries:
         SUM(CASE WHEN churn_risk_category = 'High Risk' THEN 1 ELSE 0 END) AS high_risk_count
       FROM CUSTOMER_ANALYTICS.GOLD.CUSTOMER_360_PROFILE
       GROUP BY card_type
-    verified_at: 2025-01-16
-    verified_by: system
 
   - name: state_distribution
     question: Which states have the most customers?
@@ -491,5 +512,3 @@ verified_queries:
       GROUP BY state
       ORDER BY customer_count DESC
       LIMIT 10
-    verified_at: 2025-01-16
-    verified_by: system
