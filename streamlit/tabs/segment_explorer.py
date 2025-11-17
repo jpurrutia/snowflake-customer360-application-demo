@@ -23,9 +23,13 @@ def render(execute_query):
         )
 
     with col2:
-        # State filter
-        states_query = "SELECT DISTINCT state FROM CUSTOMER_360_PROFILE ORDER BY state"
-        states_df = execute_query(states_query)
+        # State filter - cached to avoid hitting query limit
+        @st.cache_data(ttl=3600)
+        def get_states():
+            states_query = "SELECT DISTINCT state FROM CUSTOMER_360_PROFILE ORDER BY state"
+            return execute_query(states_query)
+
+        states_df = get_states()
 
         if not states_df.empty:
             all_states = ["All"] + states_df['STATE'].tolist()
