@@ -146,18 +146,20 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
     """
     try:
         # Build conversation history for context (multi-turn conversations)
-        # Cortex Analyst requires alternating roles (user, analyst, user, analyst, etc.)
+        # Cortex Analyst requires strict alternating roles (user, analyst, user, analyst, etc.)
+        # Only include complete pairs (question + successful response) to maintain alternation
         messages = []
         if conversation_history:
             for item in conversation_history[-3:]:  # Last 3 exchanges for context
-                # Add user question
-                messages.append({
-                    "role": "user",
-                    "content": [{"type": "text", "text": item.get('question', '')}]
-                })
-                # Add analyst response if it exists
                 response = item.get('response', {})
+                # Only add to history if the response was successful (to maintain role alternation)
                 if response and not response.get('error'):
+                    # Add user question
+                    messages.append({
+                        "role": "user",
+                        "content": [{"type": "text", "text": item.get('question', '')}]
+                    })
+                    # Add analyst response
                     interpretation = response.get('interpretation') or "Generated SQL query"
                     messages.append({
                         "role": "analyst",
