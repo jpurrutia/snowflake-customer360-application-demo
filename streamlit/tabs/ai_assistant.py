@@ -167,19 +167,20 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         # Call Cortex Analyst using COMPLETE function
         # Reference: https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst
 
-        # Convert messages to JSON string for PARSE_JSON
-        messages_json = json.dumps(messages)
+        # Convert messages to JSON string and escape for SQL
+        messages_json = json.dumps(messages).replace("'", "''")  # Escape single quotes for SQL
 
         # Build SQL query with proper Snowflake syntax
-        analyst_query = """
+        # Use PARSE_JSON with string literal instead of parameterized query
+        analyst_query = f"""
             SELECT SNOWFLAKE.CORTEX.COMPLETE(
                 'analyst',
-                PARSE_JSON(%s),
+                PARSE_JSON('{messages_json}'),
                 OBJECT_CONSTRUCT('semantic_model_file', '@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml')
             ) AS response
         """
 
-        cursor.execute(analyst_query, (messages_json,))
+        cursor.execute(analyst_query)
         result = cursor.fetchone()
 
         if not result or not result[0]:
