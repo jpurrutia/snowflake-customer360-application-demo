@@ -3,9 +3,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from utils import format_dataframe_columns
 
 

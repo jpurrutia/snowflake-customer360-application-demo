@@ -4,10 +4,7 @@ from datetime import datetime
 import json
 import _snowflake
 from snowflake.snowpark.context import get_active_session
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from utils import format_dataframe_columns
+from utils import format_dataframe_columns, format_column_name
 
 
 # Suggested questions organized by use case
@@ -388,8 +385,6 @@ def render(execute_query, conn):
                 # Summary metrics (if applicable)
                 if len(df) < 20 and len(df.columns) <= 5:
                     # Display as cards for small result sets
-                    # Format column names for metrics display
-                    from utils import format_column_name
                     cols = st.columns(min(len(df.columns), 4))
 
                     for idx, col_name in enumerate(df.columns[:4]):
