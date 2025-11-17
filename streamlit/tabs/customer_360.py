@@ -3,6 +3,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from utils import format_dataframe_columns
 
 
 def render(execute_query, conn):
@@ -314,16 +318,20 @@ def render(execute_query, conn):
     display_df['TRANSACTION_DATE'] = pd.to_datetime(display_df['TRANSACTION_DATE']).dt.strftime('%Y-%m-%d')
     display_df['TRANSACTION_AMOUNT'] = display_df['TRANSACTION_AMOUNT'].apply(lambda x: f"${x:,.2f}")
 
+    # Apply human-readable column names
+    display_df = format_dataframe_columns(display_df)
+
     st.dataframe(
         display_df,
         use_container_width=True,
         height=400
     )
 
-    # Export
+    # Export with human-readable column names
+    csv_df = format_dataframe_columns(df_txns_filtered.copy())
     st.download_button(
         label="📥 Download Transaction History (CSV)",
-        data=df_txns_filtered.to_csv(index=False),
+        data=csv_df.to_csv(index=False),
         file_name=f"customer_{customer_id}_transactions_{datetime.now().strftime('%Y%m%d')}.csv",
         mime="text/csv"
     )

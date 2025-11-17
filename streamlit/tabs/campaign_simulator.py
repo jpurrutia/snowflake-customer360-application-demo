@@ -3,6 +3,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from utils import format_dataframe_columns
 
 
 def calculate_campaign_roi(
@@ -344,12 +348,16 @@ def render(execute_query, conn):
     display_df['LIFETIME_VALUE'] = display_df['LIFETIME_VALUE'].apply(lambda x: f"${x:,.0f}")
     display_df['AVG_MONTHLY_SPEND'] = display_df['AVG_MONTHLY_SPEND'].apply(lambda x: f"${x:,.0f}")
 
+    # Apply human-readable column names
+    display_df = format_dataframe_columns(display_df)
+
     st.dataframe(display_df, use_container_width=True)
 
-    # Export full list
+    # Export full list with human-readable column names
+    csv_df = format_dataframe_columns(df_targets.copy())
     st.download_button(
         label="📥 Download Full Target List (CSV)",
-        data=df_targets.to_csv(index=False),
+        data=csv_df.to_csv(index=False),
         file_name=f"campaign_targets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv",
         type="primary"

@@ -4,6 +4,10 @@ from datetime import datetime
 import json
 import _snowflake
 from snowflake.snowpark.context import get_active_session
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from utils import format_dataframe_columns
 
 
 # Suggested questions organized by use case
@@ -384,24 +388,29 @@ def render(execute_query, conn):
                 # Summary metrics (if applicable)
                 if len(df) < 20 and len(df.columns) <= 5:
                     # Display as cards for small result sets
+                    # Format column names for metrics display
+                    from utils import format_column_name
                     cols = st.columns(min(len(df.columns), 4))
 
                     for idx, col_name in enumerate(df.columns[:4]):
                         with cols[idx]:
                             if pd.api.types.is_numeric_dtype(df[col_name]):
                                 value = df[col_name].iloc[0] if len(df) == 1 else df[col_name].sum()
+                                formatted_col_name = format_column_name(col_name)
                                 if col_name.lower() in ['lifetime_value', 'total_spend', 'amount', 'avg_ltv', 'total_spend_90d']:
-                                    st.metric(col_name, f"${value:,.0f}")
+                                    st.metric(formatted_col_name, f"${value:,.0f}")
                                 else:
-                                    st.metric(col_name, f"{value:,.0f}")
+                                    st.metric(formatted_col_name, f"{value:,.0f}")
 
-                # Results table
-                st.dataframe(df, use_container_width=True, height=400)
+                # Results table with human-readable column names
+                display_df = format_dataframe_columns(df.copy())
+                st.dataframe(display_df, use_container_width=True, height=400)
 
-                # Export
+                # Export with human-readable column names
+                csv_df = format_dataframe_columns(df.copy())
                 st.download_button(
                     label="📥 Download Results (CSV)",
-                    data=df.to_csv(index=False),
+                    data=csv_df.to_csv(index=False),
                     file_name=f"cortex_analyst_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv"
                 )
@@ -428,7 +437,9 @@ def render(execute_query, conn):
                     st.code(item['response']['sql'], language='sql')
 
                     if item['response']['results'] is not None:
-                        st.dataframe(item['response']['results'], use_container_width=True)
+                        # Apply human-readable column names to history results
+                        history_df = format_dataframe_columns(item['response']['results'].copy())
+                        st.dataframe(history_df, use_container_width=True)
 
     # ========== HELP SECTION ==========
 

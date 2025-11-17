@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from utils import format_dataframe_columns
 
 def render(execute_query):
     """Render Segment Explorer tab"""
@@ -187,6 +191,9 @@ def render(execute_query):
         display_df['AVG_TRANSACTION_VALUE'] = display_df['AVG_TRANSACTION_VALUE'].apply(lambda x: f"${x:,.0f}")
         display_df['CHURN_RISK_SCORE'] = display_df['CHURN_RISK_SCORE'].apply(lambda x: f"{x:.1f}%")
 
+        # Apply human-readable column names
+        display_df = format_dataframe_columns(display_df)
+
         st.dataframe(
             display_df,
             use_container_width=True,
@@ -196,7 +203,9 @@ def render(execute_query):
         # Export functionality
         st.subheader("📥 Export Segment")
 
-        csv = df.to_csv(index=False)
+        # Export with human-readable column names
+        csv_df = format_dataframe_columns(df.copy())
+        csv = csv_df.to_csv(index=False)
 
         st.download_button(
             label="Download as CSV",
