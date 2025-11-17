@@ -168,21 +168,49 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         host = f"{account}.snowflakecomputing.com"
 
         # Get session token for REST API authentication
-        # Based on debug output: session._conn._conn is the actual SnowflakeConnection
+        # Debug the actual connection structure step by step
         token = None
 
         try:
-            # Path: session._conn._conn._rest._token (actual Snowflake connection)
-            if hasattr(session, '_conn') and hasattr(session._conn, '_conn'):
-                actual_conn = session._conn._conn
-                if hasattr(actual_conn, '_rest') and hasattr(actual_conn._rest, '_token'):
-                    token = actual_conn._rest._token
-                    st.success("✅ Authentication token retrieved successfully")
+            # Step 1: Get the wrapper connection
+            if hasattr(session, '_conn'):
+                wrapper_conn = session._conn
+                st.write("DEBUG - Step 1: session._conn exists ✓")
+
+                # Step 2: Get the actual Snowflake connection
+                if hasattr(wrapper_conn, '_conn'):
+                    actual_conn = wrapper_conn._conn
+                    st.write("DEBUG - Step 2: session._conn._conn exists ✓")
+                    st.write(f"DEBUG - Type of actual_conn: {type(actual_conn)}")
+                    st.write(f"DEBUG - actual_conn attributes: {dir(actual_conn)}")
+
+                    # Step 3: Check for _rest
+                    if hasattr(actual_conn, '_rest'):
+                        rest_obj = actual_conn._rest
+                        st.write("DEBUG - Step 3: _rest exists ✓")
+                        st.write(f"DEBUG - Type of _rest: {type(rest_obj)}")
+                        st.write(f"DEBUG - _rest attributes: {dir(rest_obj)}")
+
+                        # Step 4: Check for _token
+                        if hasattr(rest_obj, '_token'):
+                            token = rest_obj._token
+                            st.success("✅ Token found at session._conn._conn._rest._token")
+                        else:
+                            st.error("❌ _rest exists but has no _token attribute")
+                    else:
+                        st.error("❌ actual_conn has no _rest attribute")
+                else:
+                    st.error("❌ wrapper_conn has no _conn attribute")
+            else:
+                st.error("❌ session has no _conn attribute")
+
         except Exception as e:
-            st.write(f"DEBUG - Error accessing token: {e}")
+            st.error(f"DEBUG - Exception occurred: {type(e).__name__}: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
         if not token:
-            st.warning("⚠️ Cannot extract authentication token from Snowflake session. Using mock implementation.")
+            st.warning("⚠️ Cannot extract authentication token. Using mock implementation.")
             return call_cortex_analyst_mock(conn, question)
 
         # Cortex Analyst REST API endpoint
