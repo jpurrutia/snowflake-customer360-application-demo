@@ -45,7 +45,13 @@ def execute_query(query, params=None):
 
     try:
         cursor = conn.cursor()
-        cursor.execute("ALTER SESSION SET STATEMENT_TIMEOUT_IN_SECONDS = 60")
+
+        # Try to set timeout (not supported in Streamlit in Snowflake stored procedures)
+        try:
+            cursor.execute("ALTER SESSION SET STATEMENT_TIMEOUT_IN_SECONDS = 60")
+        except Exception:
+            # Silently ignore if running in Streamlit in Snowflake (stored procedure context)
+            pass
 
         if params:
             cursor.execute(query, params)
