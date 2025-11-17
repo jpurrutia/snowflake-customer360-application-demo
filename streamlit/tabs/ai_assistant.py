@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import json
 import requests
+from snowflake.snowpark.context import get_active_session
 
 
 # Suggested questions organized by use case
@@ -159,34 +160,37 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             "content": [{"type": "text", "text": question}]
         })
 
-        # Get Snowflake account and token from connection
-        # For Streamlit in Snowflake, get the session which has auth built-in
-        sf_conn = st.connection("snowflake")
+        # Get Snowflake session using the official Streamlit in Snowflake API
+        session = get_active_session()
 
-        # Get account from connection
-        account = conn.account
+        # Get account name
+        account = session.get_current_account()
         host = f"{account}.snowflakecomputing.com"
 
-        # Get session token - try multiple paths as structure may vary
+        # Get session token for REST API authentication
+        # Try common token locations in session object
         token = None
+
+        # Debug: Show session structure to find token location
+        st.write("DEBUG - Session attributes:", dir(session))
+        st.write("DEBUG - Has _conn?", hasattr(session, '_conn'))
+
         try:
-            # Path 1: Try from st.connection session
-            session = sf_conn.session()
-            if hasattr(session, '_conn') and hasattr(session._conn, '_rest'):
-                token = session._conn._rest._token
-        except:
-            pass
+            # Common path: session._conn._rest._token
+            if hasattr(session, '_conn'):
+                st.write("DEBUG - _conn attributes:", dir(session._conn))
+                if hasattr(session._conn, '_rest'):
+                    st.write("DEBUG - _rest attributes:", dir(session._conn._rest))
+                    if hasattr(session._conn._rest, '_token'):
+                        token = session._conn._rest._token
+                        st.write("DEBUG - Token found via _conn._rest._token")
+        except Exception as e:
+            st.write(f"DEBUG - Error accessing token: {e}")
 
         if not token:
-            try:
-                # Path 2: Try from passed connection object
-                if hasattr(conn, '_rest') and hasattr(conn._rest, '_token'):
-                    token = conn._rest._token
-            except:
-                pass
-
-        if not token:
-            raise AttributeError("Cannot extract authentication token from Snowflake connection. Cortex Analyst requires REST API token.")
+            st.error("❌ Cannot extract authentication token from Snowflake session. Please check debug output above.")
+            st.info("💡 Using mock implementation as fallback")
+            return call_cortex_analyst_mock(conn, question)
 
         # Cortex Analyst REST API endpoint
         url = f"https://{host}/api/v2/cortex/analyst/message"
