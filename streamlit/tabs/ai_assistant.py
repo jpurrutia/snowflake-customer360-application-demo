@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
+import requests
 
 
 # Suggested questions organized by use case
@@ -131,7 +132,7 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
 
 def call_cortex_analyst(conn, question: str, conversation_history: list = None) -> dict:
     """
-    Call Snowflake Cortex Analyst to answer natural language question.
+    Call Snowflake Cortex Analyst REST API to answer natural language question.
 
     Args:
         conn: Snowflake connection
@@ -142,8 +143,6 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         dict with keys: sql, results, interpretation, error
     """
     try:
-        cursor = conn.cursor()
-
         # Build conversation history for context (multi-turn conversations)
         messages = []
         if conversation_history:
@@ -152,11 +151,7 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
                     "role": "user",
                     "content": [{"type": "text", "text": item.get('question', '')}]
                 })
-                if item.get('response'):
-                    messages.append({
-                        "role": "assistant",
-                        "content": [{"type": "text", "text": item.get('response', '')}]
-                    })
+                # Note: Assistant responses not needed for context
 
         # Add current question
         messages.append({
@@ -164,48 +159,52 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             "content": [{"type": "text", "text": question}]
         })
 
-        # Call Cortex Analyst using COMPLETE function
-        # Reference: https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst
+        # Get Snowflake account and token from connection
+        # Format: account.snowflakecomputing.com
+        account = conn.account
+        host = f"{account}.snowflakecomputing.com"
 
-        # Convert messages to JSON string and escape for SQL
-        messages_json = json.dumps(messages).replace("'", "''")  # Escape single quotes for SQL
+        # Get session token for authentication
+        token = conn.rest.token
 
-        # Build SQL query with proper Snowflake syntax
-        # Use PARSE_JSON with string literal instead of parameterized query
-        analyst_query = f"""
-            SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                'analyst',
-                PARSE_JSON('{messages_json}'),
-                OBJECT_CONSTRUCT('semantic_model_file', '@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml')
-            ) AS response
-        """
+        # Cortex Analyst REST API endpoint
+        url = f"https://{host}/api/v2/cortex/analyst/message"
 
-        cursor.execute(analyst_query)
-        result = cursor.fetchone()
+        # Request payload
+        payload = {
+            "messages": messages,
+            "semantic_model_file": "@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml"
+        }
 
-        if not result or not result[0]:
-            cursor.close()
-            return {
-                'sql': None,
-                'results': None,
-                'interpretation': None,
-                'error': 'No response from Cortex Analyst'
-            }
+        # Headers
+        headers = {
+            "Authorization": f'Snowflake Token="{token}"',
+            "Content-Type": "application/json"
+        }
 
-        # Parse Cortex Analyst response
-        response_json = json.loads(result[0]) if isinstance(result[0], str) else result[0]
+        # Make REST API request
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
 
-        # Extract SQL and interpretation from response
+        # Parse response
+        response_json = response.json()
+
+        # Extract message content
+        message = response_json.get('message', {})
+
+        # Extract SQL and interpretation
         generated_sql = None
         interpretation = None
 
-        if isinstance(response_json, dict):
-            # Response structure may vary - handle different formats
-            generated_sql = response_json.get('sql') or response_json.get('query')
-            interpretation = response_json.get('interpretation') or response_json.get('explanation')
+        # Try to find SQL in content blocks
+        content = message.get('content', [])
+        for item in content:
+            if item.get('type') == 'sql':
+                generated_sql = item.get('statement')
+            elif item.get('type') == 'text':
+                interpretation = item.get('text')
 
         if not generated_sql:
-            cursor.close()
             return {
                 'sql': None,
                 'results': None,
@@ -214,6 +213,7 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             }
 
         # Execute the generated SQL
+        cursor = conn.cursor()
         cursor.execute(generated_sql)
         results = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description]
@@ -227,12 +227,26 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             'error': None
         }
 
+    except requests.exceptions.HTTPError as e:
+        error_msg = str(e)
+
+        # Check HTTP status code
+        if e.response.status_code == 404:
+            st.warning("⚠️ Cortex Analyst endpoint not found. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
+        elif e.response.status_code == 403:
+            st.warning("⚠️ Permission denied for Cortex Analyst. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
+        else:
+            st.warning(f"⚠️ Cortex Analyst HTTP error: {error_msg}. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
+
     except Exception as e:
         error_msg = str(e)
 
-        # Check if Cortex Analyst is not enabled
-        if 'CORTEX' in error_msg.upper() and ('not found' in error_msg.lower() or 'does not exist' in error_msg.lower()):
-            st.warning("⚠️ Cortex Analyst not available. Using mock implementation.")
+        # Check if Cortex Analyst is not available
+        if 'model' in error_msg.lower() and 'unavailable' in error_msg.lower():
+            st.warning("⚠️ Cortex Analyst model not available. Using mock implementation.")
             return call_cortex_analyst_mock(conn, question)
 
         # Check if semantic model file not found
