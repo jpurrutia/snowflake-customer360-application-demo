@@ -146,13 +146,22 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
     """
     try:
         # Build conversation history for context (multi-turn conversations)
+        # Cortex Analyst requires alternating roles (user, analyst, user, analyst, etc.)
         messages = []
         if conversation_history:
             for item in conversation_history[-3:]:  # Last 3 exchanges for context
+                # Add user question
                 messages.append({
                     "role": "user",
                     "content": [{"type": "text", "text": item.get('question', '')}]
                 })
+                # Add analyst response if it exists
+                response = item.get('response', {})
+                if response and not response.get('error'):
+                    messages.append({
+                        "role": "analyst",
+                        "content": response.get('interpretation') or f"Generated SQL query"
+                    })
 
         # Add current question
         messages.append({
@@ -181,10 +190,23 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         # Parse response content (it's a JSON string)
         parsed_content = json.loads(resp["content"])
 
+        # Extract request ID for debugging
+        request_id = parsed_content.get('request_id', 'unknown')
+
         # Check if the response is successful
         if resp["status"] >= 400:
             error_msg = f"Cortex Analyst API error (status {resp['status']}): {parsed_content.get('message', 'Unknown error')}"
             st.warning(f"⚠️ {error_msg}. Using mock implementation.")
+            st.info(f"🔍 **Request ID:** `{request_id}` - Use this to look up query history")
+
+            # Log full response for debugging
+            with st.expander("🔧 Debug Info"):
+                st.json({
+                    "status": resp["status"],
+                    "request_id": request_id,
+                    "response": parsed_content
+                })
+
             return call_cortex_analyst_mock(conn, question)
 
         # Extract message content
