@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
-import requests
+import _snowflake
 from snowflake.snowpark.context import get_active_session
 
 
@@ -134,6 +134,7 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
 def call_cortex_analyst(conn, question: str, conversation_history: list = None) -> dict:
     """
     Call Snowflake Cortex Analyst REST API to answer natural language question.
+    Uses the native Streamlit in Snowflake API for authentication.
 
     Args:
         conn: Snowflake connection
@@ -152,7 +153,6 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
                     "role": "user",
                     "content": [{"type": "text", "text": item.get('question', '')}]
                 })
-                # Note: Assistant responses not needed for context
 
         # Add current question
         messages.append({
@@ -160,83 +160,35 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             "content": [{"type": "text", "text": question}]
         })
 
-        # Get Snowflake session using the official Streamlit in Snowflake API
-        session = get_active_session()
-
-        # Get account name
-        account = session.get_current_account()
-        host = f"{account}.snowflakecomputing.com"
-
-        # Get session token for REST API authentication
-        # Debug the actual connection structure step by step
-        token = None
-
-        try:
-            # Step 1: Get the wrapper connection
-            if hasattr(session, '_conn'):
-                wrapper_conn = session._conn
-                st.write("DEBUG - Step 1: session._conn exists ✓")
-
-                # Step 2: Get the actual Snowflake connection
-                if hasattr(wrapper_conn, '_conn'):
-                    actual_conn = wrapper_conn._conn
-                    st.write("DEBUG - Step 2: session._conn._conn exists ✓")
-                    st.write(f"DEBUG - Type of actual_conn: {type(actual_conn)}")
-                    st.write(f"DEBUG - actual_conn attributes: {dir(actual_conn)}")
-
-                    # Step 3: Check for _rest
-                    if hasattr(actual_conn, '_rest'):
-                        rest_obj = actual_conn._rest
-                        st.write("DEBUG - Step 3: _rest exists ✓")
-                        st.write(f"DEBUG - Type of _rest: {type(rest_obj)}")
-                        st.write(f"DEBUG - _rest attributes: {dir(rest_obj)}")
-
-                        # Step 4: Check for _token
-                        if hasattr(rest_obj, '_token'):
-                            token = rest_obj._token
-                            st.success("✅ Token found at session._conn._conn._rest._token")
-                        else:
-                            st.error("❌ _rest exists but has no _token attribute")
-                    else:
-                        st.error("❌ actual_conn has no _rest attribute")
-                else:
-                    st.error("❌ wrapper_conn has no _conn attribute")
-            else:
-                st.error("❌ session has no _conn attribute")
-
-        except Exception as e:
-            st.error(f"DEBUG - Exception occurred: {type(e).__name__}: {e}")
-            import traceback
-            st.code(traceback.format_exc())
-
-        if not token:
-            st.warning("⚠️ Cannot extract authentication token. Using mock implementation.")
-            return call_cortex_analyst_mock(conn, question)
-
-        # Cortex Analyst REST API endpoint
-        url = f"https://{host}/api/v2/cortex/analyst/message"
-
         # Request payload
-        payload = {
+        request_body = {
             "messages": messages,
             "semantic_model_file": "@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml"
         }
 
-        # Headers
-        headers = {
-            "Authorization": f'Snowflake Token="{token}"',
-            "Content-Type": "application/json"
-        }
+        # Use Snowflake's native API request function for Streamlit in Snowflake
+        # This handles authentication automatically
+        resp = _snowflake.send_snow_api_request(
+            "POST",  # method
+            "/api/v2/cortex/analyst/message",  # path
+            {},  # headers
+            {},  # params
+            request_body,  # body
+            None,  # request_guid
+            50000,  # timeout in milliseconds
+        )
 
-        # Make REST API request
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        response.raise_for_status()
+        # Parse response content (it's a JSON string)
+        parsed_content = json.loads(resp["content"])
 
-        # Parse response
-        response_json = response.json()
+        # Check if the response is successful
+        if resp["status"] >= 400:
+            error_msg = f"Cortex Analyst API error (status {resp['status']}): {parsed_content.get('message', 'Unknown error')}"
+            st.warning(f"⚠️ {error_msg}. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
 
         # Extract message content
-        message = response_json.get('message', {})
+        message = parsed_content.get('message', {})
 
         # Extract SQL and interpretation
         generated_sql = None
@@ -273,34 +225,8 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             'error': None
         }
 
-    except requests.exceptions.HTTPError as e:
-        error_msg = str(e)
-
-        # Check HTTP status code
-        if e.response.status_code == 404:
-            st.warning("⚠️ Cortex Analyst endpoint not found. Using mock implementation.")
-            return call_cortex_analyst_mock(conn, question)
-        elif e.response.status_code == 403:
-            st.warning("⚠️ Permission denied for Cortex Analyst. Using mock implementation.")
-            return call_cortex_analyst_mock(conn, question)
-        else:
-            st.warning(f"⚠️ Cortex Analyst HTTP error: {error_msg}. Using mock implementation.")
-            return call_cortex_analyst_mock(conn, question)
-
     except Exception as e:
         error_msg = str(e)
-
-        # Check if Cortex Analyst is not available
-        if 'model' in error_msg.lower() and 'unavailable' in error_msg.lower():
-            st.warning("⚠️ Cortex Analyst model not available. Using mock implementation.")
-            return call_cortex_analyst_mock(conn, question)
-
-        # Check if semantic model file not found
-        if 'semantic' in error_msg.lower() and 'not found' in error_msg.lower():
-            st.warning("⚠️ Semantic model not found. Using mock implementation.")
-            return call_cortex_analyst_mock(conn, question)
-
-        # Other errors - still try mock as fallback
         st.warning(f"⚠️ Cortex Analyst error: {error_msg}. Using mock implementation.")
         return call_cortex_analyst_mock(conn, question)
 
