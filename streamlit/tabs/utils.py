@@ -67,14 +67,36 @@ def format_column_name(col_name: str) -> str:
 
 def format_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Apply human-readable column names to a dataframe.
+    Apply human-readable column names and format values appropriately.
 
     Args:
         df: DataFrame with database column names
 
     Returns:
-        DataFrame with human-readable column names
+        DataFrame with human-readable column names and formatted values
     """
+    # Make a copy to avoid modifying original
+    df = df.copy()
+
+    # Format values based on column names
+    for col in df.columns:
+        col_lower = col.lower()
+
+        # Format percentage columns
+        if any(keyword in col_lower for keyword in ['_pct', '_percent', 'risk_score', 'rate', 'ratio']):
+            if pd.api.types.is_numeric_dtype(df[col]):
+                df[col] = df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
+
+        # Format currency columns
+        elif any(keyword in col_lower for keyword in ['amount', 'value', 'ltv', 'spend', 'revenue', 'cost', 'price', 'limit', 'credit']):
+            if pd.api.types.is_numeric_dtype(df[col]):
+                df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "N/A")
+
+        # Format count/integer columns
+        elif any(keyword in col_lower for keyword in ['count', 'total_transactions', 'num_']):
+            if pd.api.types.is_numeric_dtype(df[col]):
+                df[col] = df[col].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "N/A")
+
     # Create a mapping of old names to new names
     column_mapping = {col: format_column_name(col) for col in df.columns}
 
