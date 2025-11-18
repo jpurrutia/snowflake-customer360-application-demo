@@ -1,7 +1,8 @@
 -- ============================================================================
 -- Customer Generator Stored Procedure
 -- ============================================================================
--- Purpose: Generate synthetic customer data natively in Snowflake using Snowpark
+-- Purpose: Generate synthetic customer data and write to internal stage
+-- Output: Parquet file in @customer_data_stage for dbt Bronze ingestion
 -- Based on: data_generation/customer_generator.py
 -- Usage: CALL BRONZE.GENERATE_CUSTOMERS(50000, 42);
 -- ============================================================================
@@ -29,7 +30,7 @@ AS
 $$
 def main(session, num_customers, seed):
     """
-    Generate synthetic customer data and write directly to RAW_CUSTOMERS table.
+    Generate synthetic customer data and write to internal stage as Parquet.
 
     Args:
         session: Snowpark session object
@@ -37,7 +38,7 @@ def main(session, num_customers, seed):
         seed: Random seed for reproducibility
 
     Returns:
-        String summary of generation results
+        String summary with stage location and generation statistics
     """
     from faker import Faker
     import numpy as np
@@ -156,15 +157,16 @@ def main(session, num_customers, seed):
     # Create DataFrame
     df = pd.DataFrame(customers)
 
-    # Write to Snowflake table
-    session.write_pandas(
-        df,
-        table_name="RAW_CUSTOMERS",
-        database="CUSTOMER_ANALYTICS",
-        schema="BRONZE",
-        overwrite=True,
-        auto_create_table=False
-    )
+    # Convert to Snowpark DataFrame
+    snowpark_df = session.create_dataframe(df)
+
+    # Generate timestamp for file versioning
+    from datetime import datetime
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    stage_path = f"@customer_data_stage/customers_seed{seed}_{timestamp}.parquet"
+
+    # Write to internal stage as Parquet
+    snowpark_df.write.mode("overwrite").parquet(stage_path)
 
     # Gather statistics for return message
     segment_distribution = df["CUSTOMER_SEGMENT"].value_counts().to_dict()
@@ -172,7 +174,8 @@ def main(session, num_customers, seed):
     avg_credit_limit = df["CREDIT_LIMIT"].mean()
 
     # Build summary message
-    summary = f"✓ Successfully generated {num_customers} customers in BRONZE.RAW_CUSTOMERS\n\n"
+    summary = f"✓ Successfully generated {num_customers} customers to stage\n\n"
+    summary += f"Stage Location: {stage_path}\n\n"
     summary += "Segment Distribution:\n"
     for segment, count in sorted(segment_distribution.items()):
         pct = count / num_customers * 100
@@ -185,6 +188,7 @@ def main(session, num_customers, seed):
 
     summary += f"\nAverage Credit Limit: ${avg_credit_limit:,.2f}\n"
     summary += f"Random Seed: {seed}\n"
+    summary += f"\nNext Step: Run 'dbt run --select bronze.raw_customers' to load into Bronze layer\n"
 
     return summary
 $$;
@@ -200,8 +204,11 @@ GRANT USAGE ON PROCEDURE GENERATE_CUSTOMERS(INT, INT) TO ROLE ACCOUNTADMIN;
 -- Usage Examples
 -- ============================================================================
 
--- Generate 50,000 customers with default seed (42)
+-- Step 1: Generate 50,000 customers with default seed (42) to stage
 -- CALL BRONZE.GENERATE_CUSTOMERS(50000, 42);
+
+-- Step 2: Load from stage to Bronze table using dbt
+-- dbt run --select bronze.raw_customers
 
 -- Generate 1,000 customers for testing with different seed
 -- CALL BRONZE.GENERATE_CUSTOMERS(1000, 123);
@@ -210,7 +217,13 @@ GRANT USAGE ON PROCEDURE GENERATE_CUSTOMERS(INT, INT) TO ROLE ACCOUNTADMIN;
 -- Verification Queries
 -- ============================================================================
 
--- Check customer count
+-- List files in stage
+-- LIST @customer_data_stage;
+
+-- Preview data in stage
+-- SELECT * FROM @customer_data_stage (FILE_FORMAT => 'PARQUET') LIMIT 10;
+
+-- Check customer count after dbt load
 -- SELECT COUNT(*) FROM BRONZE.RAW_CUSTOMERS;
 
 -- Check segment distribution

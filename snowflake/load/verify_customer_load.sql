@@ -21,7 +21,7 @@ SELECT 'Row Count Validation' AS validation_name,
            WHEN COUNT(*) = 50000 THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 2: Null Customer IDs
@@ -34,7 +34,7 @@ SELECT 'Null Customer IDs' AS validation_name,
            WHEN COUNT_IF(customer_id IS NULL) = 0 THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 3: Duplicate Customer IDs
@@ -43,7 +43,7 @@ FROM BRONZE_CUSTOMERS;
 WITH duplicates AS (
     SELECT customer_id,
            COUNT(*) AS occurrence_count
-    FROM BRONZE_CUSTOMERS
+    FROM RAW_CUSTOMERS
     GROUP BY customer_id
     HAVING COUNT(*) > 1
 )
@@ -64,7 +64,7 @@ WITH segment_stats AS (
     SELECT customer_segment,
            COUNT(*) AS row_count,
            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-    FROM BRONZE_CUSTOMERS
+    FROM RAW_CUSTOMERS
     GROUP BY customer_segment
 )
 SELECT 'Segment Distribution' AS validation_name,
@@ -101,7 +101,7 @@ SELECT 'Account Open Date Range' AS validation_name,
            THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 6: Email Format
@@ -115,7 +115,7 @@ SELECT 'Email Format' AS validation_name,
            WHEN COUNT_IF(email LIKE '%@%' AND email LIKE '%.%') = COUNT(*) THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 7: Credit Limit Range
@@ -133,7 +133,7 @@ SELECT 'Credit Limit Range' AS validation_name,
            THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 8: Age Range
@@ -147,7 +147,7 @@ SELECT 'Age Range' AS validation_name,
            WHEN MIN(age) >= 22 AND MAX(age) <= 75 THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 9: Metadata Fields
@@ -164,7 +164,7 @@ SELECT 'Metadata Fields Populated' AS validation_name,
            THEN '✓ PASS'
            ELSE '✗ FAIL'
        END AS status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Validation 10: Decline Type Logic
@@ -175,7 +175,7 @@ WITH decline_validation AS (
         customer_segment,
         decline_type,
         COUNT(*) AS count
-    FROM BRONZE_CUSTOMERS
+    FROM RAW_CUSTOMERS
     GROUP BY customer_segment, decline_type
 )
 SELECT 'Decline Type Logic' AS validation_name,
@@ -210,7 +210,7 @@ SELECT
         THEN '✓ ALL VALIDATIONS PASSED'
         ELSE '✗ SOME VALIDATIONS FAILED - REVIEW ABOVE'
     END AS overall_status
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Sample Data Preview
@@ -219,7 +219,7 @@ FROM BRONZE_CUSTOMERS;
 SELECT 'Sample Data (First 5 Rows)' AS preview;
 
 SELECT *
-FROM BRONZE_CUSTOMERS
+FROM RAW_CUSTOMERS
 ORDER BY customer_id
 LIMIT 5;
 

@@ -62,7 +62,6 @@ def test_all_marts_build(aggregate_marts_setup):
 
     Expected tables:
     - metric_customer_ltv
-    - metric_mom_spend_change
     - metric_avg_transaction_value
     - customer_360_profile
     """
@@ -76,7 +75,6 @@ def test_all_marts_build(aggregate_marts_setup):
           AND table_type = 'BASE TABLE'
           AND table_name IN (
               'METRIC_CUSTOMER_LTV',
-              'METRIC_MOM_SPEND_CHANGE',
               'METRIC_AVG_TRANSACTION_VALUE',
               'CUSTOMER_360_PROFILE'
           )
@@ -88,7 +86,6 @@ def test_all_marts_build(aggregate_marts_setup):
     # Expected tables
     expected_tables = {
         'METRIC_CUSTOMER_LTV',
-        'METRIC_MOM_SPEND_CHANGE',
         'METRIC_AVG_TRANSACTION_VALUE',
         'CUSTOMER_360_PROFILE'
     }
@@ -175,80 +172,7 @@ def test_metric_customer_ltv(aggregate_marts_setup):
 
 
 # ============================================================================
-# Test 3: Metric MoM Spend Change
-# ============================================================================
-
-def test_metric_mom_spend_change(aggregate_marts_setup):
-    """
-    Verify MoM spend change metric calculations.
-
-    Tests:
-    - Monthly records exist for 18 months
-    - MoM change % calculated correctly
-    - First month has NULL prior_month_spend
-    """
-    cursor = aggregate_marts_setup.cursor()
-
-    # Test 1: Monthly records exist
-    cursor.execute("""
-        SELECT
-            COUNT(DISTINCT month) AS month_count,
-            MIN(month) AS earliest_month,
-            MAX(month) AS latest_month
-        FROM GOLD.METRIC_MOM_SPEND_CHANGE
-    """)
-
-    row = cursor.fetchone()
-    month_count, earliest_month, latest_month = row
-
-    # Expected: ~18 months of data
-    assert month_count >= 15 and month_count <= 20, \
-        f"Expected ~18 months, got {month_count}"
-
-    # Test 2: First month has NULL prior_month_spend
-    cursor.execute("""
-        SELECT COUNT(*) AS first_month_with_prior
-        FROM GOLD.METRIC_MOM_SPEND_CHANGE
-        WHERE month_number = 1
-          AND prior_month_spend IS NOT NULL
-    """)
-
-    first_month_with_prior = cursor.fetchone()[0]
-    assert first_month_with_prior == 0, \
-        f"Found {first_month_with_prior} first months with non-NULL prior_month_spend"
-
-    # Test 3: Verify MoM calculation for random customer
-    cursor.execute("""
-        SELECT
-            customer_id,
-            month,
-            monthly_spend,
-            prior_month_spend,
-            mom_change_pct,
-            CASE
-                WHEN prior_month_spend > 0
-                THEN ((monthly_spend - prior_month_spend) / prior_month_spend) * 100
-                ELSE NULL
-            END AS manual_mom_change_pct
-        FROM GOLD.METRIC_MOM_SPEND_CHANGE
-        WHERE mom_change_pct IS NOT NULL
-        ORDER BY RANDOM()
-        LIMIT 1
-    """)
-
-    row = cursor.fetchone()
-    customer_id, month, monthly_spend, prior_month_spend, mom_change_pct, manual_mom_change_pct = row
-
-    difference = abs(mom_change_pct - manual_mom_change_pct)
-
-    assert difference < 0.01, \
-        f"MoM calculation mismatch for {customer_id} {month}: {mom_change_pct} != {manual_mom_change_pct}"
-
-    print(f"✓ MoM spend change: {month_count} months of data, verified calculation for {customer_id}")
-
-
-# ============================================================================
-# Test 4: Metric Average Transaction Value
+# Test 3: Metric Average Transaction Value
 # ============================================================================
 
 def test_metric_avg_transaction_value(aggregate_marts_setup):
@@ -581,7 +505,6 @@ def test_summary(aggregate_marts_setup):
     cursor.execute("""
         SELECT
             (SELECT COUNT(*) FROM GOLD.METRIC_CUSTOMER_LTV) AS ltv_count,
-            (SELECT COUNT(*) FROM GOLD.METRIC_MOM_SPEND_CHANGE) AS mom_count,
             (SELECT COUNT(*) FROM GOLD.METRIC_AVG_TRANSACTION_VALUE) AS atv_count,
             (SELECT COUNT(*) FROM GOLD.CUSTOMER_360_PROFILE) AS c360_count
     """)
@@ -592,9 +515,8 @@ def test_summary(aggregate_marts_setup):
     print("AGGREGATE MARTS SUMMARY")
     print("="*80)
     print(f"metric_customer_ltv:            {row[0]:>12,} rows")
-    print(f"metric_mom_spend_change:        {row[1]:>12,} rows")
-    print(f"metric_avg_transaction_value:   {row[2]:>12,} rows")
-    print(f"customer_360_profile:           {row[3]:>12,} rows")
+    print(f"metric_avg_transaction_value:   {row[1]:>12,} rows")
+    print(f"customer_360_profile:           {row[2]:>12,} rows")
     print("="*80)
 
     # Get segment distribution from customer_360_profile

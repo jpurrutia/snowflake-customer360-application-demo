@@ -16,7 +16,7 @@ This directory contains SQL scripts for bulk loading data from S3 external stage
 
 **Script**: `load_customers_bulk.sql`
 
-**Purpose**: Load customer data from S3 into `BRONZE.BRONZE_CUSTOMERS` table
+**Purpose**: Load customer data from S3 into `BRONZE.RAW_CUSTOMERS` table
 
 **Prerequisites**:
 - Bronze table created (`06_create_bronze_tables.sql`)
@@ -31,7 +31,7 @@ External Stage (@customer_stage)
     ↓
 COPY INTO Command
     ↓
-BRONZE.BRONZE_CUSTOMERS Table
+BRONZE.RAW_CUSTOMERS Table
     ↓
 Observability Logging
 ```
@@ -239,7 +239,7 @@ USE SCHEMA BRONZE;
 LIST @customer_stage;
 
 -- Verify table exists
-SHOW TABLES LIKE 'BRONZE_CUSTOMERS';
+SHOW TABLES LIKE 'RAW_CUSTOMERS';
 ```
 
 ### Step 2: Run Load Script
@@ -253,7 +253,7 @@ SHOW TABLES LIKE 'BRONZE_CUSTOMERS';
 
 ```sql
 -- Check row count
-SELECT COUNT(*) FROM BRONZE_CUSTOMERS;
+SELECT COUNT(*) FROM RAW_CUSTOMERS;
 -- Expected: 50,000
 
 -- Run full validation
@@ -270,7 +270,7 @@ SELECT COUNT(*) FROM BRONZE_CUSTOMERS;
 -- View load history for table
 SELECT *
 FROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(
-    TABLE_NAME => 'CUSTOMER_ANALYTICS.BRONZE.BRONZE_CUSTOMERS',
+    TABLE_NAME => 'CUSTOMER_ANALYTICS.BRONZE.RAW_CUSTOMERS',
     START_TIME => DATEADD(days, -7, CURRENT_TIMESTAMP())
 ))
 ORDER BY LAST_LOAD_TIME DESC;
@@ -294,7 +294,7 @@ Every load logs metrics to `OBSERVABILITY.LAYER_RECORD_COUNTS`:
 ```sql
 SELECT *
 FROM CUSTOMER_ANALYTICS.OBSERVABILITY.LAYER_RECORD_COUNTS
-WHERE table_name = 'BRONZE_CUSTOMERS'
+WHERE table_name = 'RAW_CUSTOMERS'
 ORDER BY run_timestamp DESC;
 ```
 
@@ -373,7 +373,7 @@ Snowflake automatically parallelizes:
 ```sql
 -- View error details
 SELECT *
-FROM TABLE(VALIDATE(BRONZE_CUSTOMERS, JOB_ID => '<copy_job_id>'));
+FROM TABLE(VALIDATE(RAW_CUSTOMERS, JOB_ID => '<copy_job_id>'));
 ```
 
 ---

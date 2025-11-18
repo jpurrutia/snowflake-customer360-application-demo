@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Bulk Load Customers from S3 to Bronze Layer
 -- ============================================================================
--- Purpose: Load customer data from S3 into BRONZE_CUSTOMERS table using COPY INTO
+-- Purpose: Load customer data from S3 into RAW_CUSTOMERS table using COPY INTO
 -- Prerequisites:
 --   - Bronze table created (06_create_bronze_tables.sql)
 --   - S3 stage configured (05_create_stages.sql)
@@ -23,13 +23,13 @@ LIST @customer_stage;
 -- Check current row count (before load)
 SELECT 'Current row count before load' AS step,
        COUNT(*) AS row_count
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- ============================================================================
 -- Bulk Load using COPY INTO
 -- ============================================================================
 
-COPY INTO BRONZE_CUSTOMERS (
+COPY INTO RAW_CUSTOMERS (
     customer_id,
     first_name,
     last_name,
@@ -89,18 +89,18 @@ FORCE = FALSE;  -- Skip files already loaded (prevents duplicates)
 -- Total rows loaded
 SELECT 'Total rows after load' AS step,
        COUNT(*) AS row_count
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- Distinct customer count
 SELECT 'Distinct customers' AS step,
        COUNT(DISTINCT customer_id) AS distinct_count
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- Rows per segment
 SELECT customer_segment,
        COUNT(*) AS row_count,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-FROM BRONZE_CUSTOMERS
+FROM RAW_CUSTOMERS
 GROUP BY customer_segment
 ORDER BY row_count DESC;
 
@@ -108,7 +108,7 @@ ORDER BY row_count DESC;
 SELECT card_type,
        COUNT(*) AS row_count,
        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-FROM BRONZE_CUSTOMERS
+FROM RAW_CUSTOMERS
 GROUP BY card_type
 ORDER BY row_count DESC;
 
@@ -132,12 +132,12 @@ SELECT
     CURRENT_TIMESTAMP() AS run_timestamp,
     'bronze' AS layer,
     'BRONZE' AS schema_name,
-    'BRONZE_CUSTOMERS' AS table_name,
+    'RAW_CUSTOMERS' AS table_name,
     COUNT(*) AS record_count,
     COUNT(DISTINCT customer_id) AS distinct_keys,
     COUNT_IF(customer_id IS NULL) AS null_key_count,
     COUNT(*) - COUNT(DISTINCT customer_id) AS duplicate_key_count
-FROM BRONZE_CUSTOMERS;
+FROM RAW_CUSTOMERS;
 
 -- Verify observability logging
 SELECT 'Observability logging' AS step,
@@ -145,7 +145,7 @@ SELECT 'Observability logging' AS step,
 
 SELECT *
 FROM CUSTOMER_ANALYTICS.OBSERVABILITY.LAYER_RECORD_COUNTS
-WHERE table_name = 'BRONZE_CUSTOMERS'
+WHERE table_name = 'RAW_CUSTOMERS'
 ORDER BY run_timestamp DESC
 LIMIT 5;
 
@@ -156,7 +156,7 @@ LIMIT 5;
 -- View load history (files loaded, rows processed, errors)
 SELECT *
 FROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(
-    TABLE_NAME => 'CUSTOMER_ANALYTICS.BRONZE.BRONZE_CUSTOMERS',
+    TABLE_NAME => 'CUSTOMER_ANALYTICS.BRONZE.RAW_CUSTOMERS',
     START_TIME => DATEADD(hours, -1, CURRENT_TIMESTAMP())
 ))
 ORDER BY LAST_LOAD_TIME DESC;

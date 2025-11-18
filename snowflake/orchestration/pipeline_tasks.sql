@@ -100,7 +100,7 @@ AS
       'complete_pipeline',
       CURRENT_TIMESTAMP(),
       'SUCCESS',
-      (SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS);
+      (SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.RAW_TRANSACTIONS);
   END;
 
 -- ============================================================================
@@ -111,7 +111,7 @@ USE SCHEMA BRONZE;
 
 -- Create stream on transactions table to track changes
 CREATE OR REPLACE STREAM bronze_transactions_stream
-  ON TABLE BRONZE_TRANSACTIONS
+  ON TABLE RAW_TRANSACTIONS
   COMMENT = 'Track new transactions for incremental processing';
 
 -- ============================================================================

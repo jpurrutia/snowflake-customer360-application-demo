@@ -31,7 +31,7 @@ Quality Checks:
 - No NULL merchant_category (defaulted to 'Uncategorized')
 
 Dependencies:
-- Bronze layer: BRONZE_TRANSACTIONS
+- Bronze layer: RAW_TRANSACTIONS
 - Staging layer: stg_customers (for FK validation)
 
 Downstream:

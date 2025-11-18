@@ -53,7 +53,7 @@ make upload-customers BUCKET=your-bucket
 make load-customers
 ```
 
-**Output**: `BRONZE.BRONZE_CUSTOMERS` (50,000 rows)
+**Output**: `BRONZE.RAW_CUSTOMERS` (50,000 rows)
 
 **Schema**:
 - customer_id, first_name, last_name, email
@@ -83,7 +83,7 @@ EXECUTE IMMEDIATE FROM @snowflake_panel_demo_repo/branches/main/snowflake/data_g
 make generate-transactions
 ```
 
-**Output**: `BRONZE.BRONZE_TRANSACTIONS` (10M-17M rows, ~13.5M average)
+**Output**: `BRONZE.RAW_TRANSACTIONS` (10M-17M rows, ~13.5M average)
 
 **Schema**:
 - transaction_id, customer_id, transaction_date
@@ -114,8 +114,8 @@ make run-dbt
 **Medallion Architecture**:
 
 **Bronze Layer** (Raw):
-- `BRONZE_CUSTOMERS` - Raw customer data
-- `BRONZE_TRANSACTIONS` - Raw transaction data
+- `RAW_CUSTOMERS` - Raw customer data
+- `RAW_TRANSACTIONS` - Raw transaction data
 
 **Silver Layer** (Cleaned/Conformed):
 - Built by dbt models (intermediate transformations)
@@ -222,7 +222,7 @@ refresh_analytics_views (Task 5)
 
 ```
 bronze_transactions_stream (Stream)
-  Source: BRONZE.BRONZE_TRANSACTIONS
+  Source: BRONZE.RAW_TRANSACTIONS
   Purpose: Track new transactions
         ↓
 process_incremental_transactions (Task)

@@ -46,50 +46,24 @@ Usage:
 ============================================================================
 #}
 
+-- Use pre-aggregated intermediate model (much faster!)
 SELECT
-    c.customer_id,
-    c.customer_key,
+    i.customer_id,
+    i.customer_key,
     seg.customer_segment,
 
-    -- Lifetime Value: Total spending all-time
-    COALESCE(SUM(f.transaction_amount), 0) AS lifetime_value,
-
-    -- Transaction counts
-    COUNT(f.transaction_key) AS total_transactions,
-
-    -- Activity timeline
-    MIN(f.transaction_date) AS first_transaction_date,
-    MAX(f.transaction_date) AS last_transaction_date,
-
-    -- Customer age (days between first and last transaction)
-    COALESCE(
-        DATEDIFF('day', MIN(f.transaction_date), MAX(f.transaction_date)),
-        0
-    ) AS customer_age_days,
-
-    -- Average spending per day (LTV / age)
-    CASE
-        WHEN DATEDIFF('day', MIN(f.transaction_date), MAX(f.transaction_date)) > 0
-        THEN COALESCE(SUM(f.transaction_amount), 0) /
-             DATEDIFF('day', MIN(f.transaction_date), MAX(f.transaction_date))
-        ELSE 0
-    END AS avg_spend_per_day,
+    -- All metrics pre-calculated in int_customer_transaction_summary
+    i.lifetime_value,
+    i.total_transactions,
+    i.first_transaction_date,
+    i.last_transaction_date,
+    i.customer_age_days,
+    i.avg_spend_per_day,
 
     -- Metadata
-    CURRENT_DATE() AS metric_calculated_date
+    i.metric_calculated_date
 
-FROM {{ ref('dim_customer') }} c
-
-LEFT JOIN {{ ref('fct_transactions') }} f
-    ON c.customer_key = f.customer_key
-    AND f.status = 'approved'  -- Only approved transactions
+FROM {{ ref('int_customer_transaction_summary') }} i
 
 LEFT JOIN {{ ref('customer_segments') }} seg
-    ON c.customer_id = seg.customer_id
-
-WHERE c.is_current = TRUE
-
-GROUP BY
-    c.customer_id,
-    c.customer_key,
-    seg.customer_segment
+    ON i.customer_id = seg.customer_id

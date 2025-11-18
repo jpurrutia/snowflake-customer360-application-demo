@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Verify Transaction Bulk Load
 -- ============================================================================
--- Purpose: Comprehensive validation of BRONZE.BRONZE_TRANSACTIONS data
+-- Purpose: Comprehensive validation of BRONZE.RAW_TRANSACTIONS data
 -- Run After: snowflake/load/load_transactions_bulk.sql
 -- Expected Rows: ~13.5M (10M - 17M acceptable range)
 -- ============================================================================
@@ -28,7 +28,7 @@ SELECT '1. Row Count Validation' AS check_name;
 
 WITH row_count AS (
     SELECT COUNT(*) AS actual_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
 )
 SELECT
     'Row Count' AS validation,
@@ -51,7 +51,7 @@ WITH txn_id_check AS (
     SELECT
         COUNT(*) AS total_count,
         COUNT(DISTINCT transaction_id) AS unique_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
 )
 SELECT
     'Unique transaction_ids' AS validation,
@@ -77,7 +77,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - NULL transaction IDs found'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE transaction_id IS NULL;
 
 SELECT
@@ -87,7 +87,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - NULL customer IDs found'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE customer_id IS NULL;
 
 SELECT
@@ -97,7 +97,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - NULL transaction dates found'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE transaction_date IS NULL;
 
 SELECT
@@ -107,7 +107,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - NULL transaction amounts found'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE transaction_amount IS NULL;
 
 -- ============================================================================
@@ -119,7 +119,7 @@ SELECT '4. Customer Representation' AS check_name;
 WITH customer_check AS (
     SELECT
         COUNT(DISTINCT customer_id) AS distinct_customers
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
 )
 SELECT
     'Unique customers in transactions' AS validation,
@@ -141,10 +141,10 @@ SELECT '5. Customers Without Transactions' AS check_name;
 WITH missing_customers AS (
     SELECT
         c.customer_id
-    FROM BRONZE.BRONZE_CUSTOMERS c
+    FROM BRONZE.RAW_CUSTOMERS c
     WHERE NOT EXISTS (
         SELECT 1
-        FROM BRONZE.BRONZE_TRANSACTIONS t
+        FROM BRONZE.RAW_TRANSACTIONS t
         WHERE t.customer_id = c.customer_id
     )
 )
@@ -163,10 +163,10 @@ SELECT
     'Sample missing customers' AS info,
     customer_id,
     customer_segment
-FROM BRONZE.BRONZE_CUSTOMERS c
+FROM BRONZE.RAW_CUSTOMERS c
 WHERE NOT EXISTS (
     SELECT 1
-    FROM BRONZE.BRONZE_TRANSACTIONS t
+    FROM BRONZE.RAW_TRANSACTIONS t
     WHERE t.customer_id = c.customer_id
 )
 LIMIT 10;
@@ -180,10 +180,10 @@ SELECT '6. Referential Integrity Check' AS check_name;
 WITH orphaned_txns AS (
     SELECT
         t.customer_id
-    FROM BRONZE.BRONZE_TRANSACTIONS t
+    FROM BRONZE.RAW_TRANSACTIONS t
     WHERE NOT EXISTS (
         SELECT 1
-        FROM BRONZE.BRONZE_CUSTOMERS c
+        FROM BRONZE.RAW_CUSTOMERS c
         WHERE c.customer_id = t.customer_id
     )
 )
@@ -208,7 +208,7 @@ WITH date_range AS (
         MAX(transaction_date) AS latest_date,
         DATEDIFF('month', MIN(transaction_date), MAX(transaction_date)) AS months_span,
         DATEDIFF('day', MIN(transaction_date), MAX(transaction_date)) AS days_span
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
 )
 SELECT
     'Date range' AS validation,
@@ -232,7 +232,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - Found transactions in the future'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE transaction_date > CURRENT_TIMESTAMP();
 
 -- ============================================================================
@@ -248,7 +248,7 @@ WITH amount_stats AS (
         AVG(transaction_amount) AS avg_amount,
         COUNT_IF(transaction_amount <= 0) AS zero_or_negative,
         COUNT_IF(transaction_amount > 10000) AS extremely_high
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
 )
 SELECT
     'Transaction amounts' AS validation,
@@ -278,7 +278,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - Missing ingestion timestamps'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE ingestion_timestamp IS NULL;
 
 SELECT
@@ -288,7 +288,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - Missing source file metadata'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE source_file IS NULL;
 
 SELECT
@@ -298,7 +298,7 @@ SELECT
         WHEN COUNT(*) = 0 THEN '✓ PASS'
         ELSE '✗ FAIL - Missing file row number metadata'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 WHERE _metadata_file_row_number IS NULL;
 
 -- Check source file naming
@@ -309,7 +309,7 @@ SELECT
         WHEN MIN(source_file) LIKE '%transactions_historical%' THEN '✓ PASS'
         ELSE '⚠️  WARNING - Unexpected source file names'
     END AS status
-FROM BRONZE.BRONZE_TRANSACTIONS;
+FROM BRONZE.RAW_TRANSACTIONS;
 
 -- ============================================================================
 -- Check 10: Status Distribution
@@ -322,7 +322,7 @@ WITH status_dist AS (
         status,
         COUNT(*) AS txn_count,
         ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     GROUP BY status
 )
 SELECT
@@ -350,7 +350,7 @@ SELECT
     channel,
     COUNT(*) AS txn_count,
     ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY channel
 ORDER BY txn_count DESC;
 
@@ -365,7 +365,7 @@ SELECT
     merchant_category,
     COUNT(*) AS txn_count,
     ROUND(AVG(transaction_amount), 2) AS avg_amount
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY merchant_category
 ORDER BY txn_count DESC;
 
@@ -386,7 +386,7 @@ SELECT
     MAX(transaction_date) AS latest_date,
     ROUND(AVG(transaction_amount), 2) AS avg_amount,
     ROUND(SUM(transaction_amount), 2) AS total_volume
-FROM BRONZE.BRONZE_TRANSACTIONS;
+FROM BRONZE.RAW_TRANSACTIONS;
 
 -- Monthly volume
 SELECT
@@ -395,7 +395,7 @@ SELECT
     COUNT(*) AS txn_count,
     ROUND(AVG(transaction_amount), 2) AS avg_amount,
     ROUND(SUM(transaction_amount), 2) AS total_amount
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY DATE_TRUNC('month', transaction_date)
 ORDER BY month;
 
@@ -410,7 +410,7 @@ FROM (
     SELECT
         customer_id,
         COUNT(*) AS txn_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     GROUP BY customer_id
 );
 
@@ -431,7 +431,7 @@ SELECT
     merchant_category,
     channel,
     status
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 ORDER BY transaction_date, transaction_id
 LIMIT 10;
 
@@ -447,14 +447,14 @@ SELECT '========================================' AS issues;
 WITH all_checks AS (
     SELECT 'Duplicate transaction IDs' AS issue_type,
            COUNT(*) - COUNT(DISTINCT transaction_id) AS issue_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     HAVING COUNT(*) - COUNT(DISTINCT transaction_id) > 0
 
     UNION ALL
 
     SELECT 'NULL transaction IDs' AS issue_type,
            COUNT(*) AS issue_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     WHERE transaction_id IS NULL
     HAVING COUNT(*) > 0
 
@@ -462,7 +462,7 @@ WITH all_checks AS (
 
     SELECT 'NULL customer IDs' AS issue_type,
            COUNT(*) AS issue_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     WHERE customer_id IS NULL
     HAVING COUNT(*) > 0
 
@@ -470,9 +470,9 @@ WITH all_checks AS (
 
     SELECT 'Invalid customer IDs' AS issue_type,
            COUNT(DISTINCT t.customer_id) AS issue_count
-    FROM BRONZE.BRONZE_TRANSACTIONS t
+    FROM BRONZE.RAW_TRANSACTIONS t
     WHERE NOT EXISTS (
-        SELECT 1 FROM BRONZE.BRONZE_CUSTOMERS c
+        SELECT 1 FROM BRONZE.RAW_CUSTOMERS c
         WHERE c.customer_id = t.customer_id
     )
     HAVING COUNT(*) > 0
@@ -481,7 +481,7 @@ WITH all_checks AS (
 
     SELECT 'Future transaction dates' AS issue_type,
            COUNT(*) AS issue_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     WHERE transaction_date > CURRENT_TIMESTAMP()
     HAVING COUNT(*) > 0
 
@@ -489,7 +489,7 @@ WITH all_checks AS (
 
     SELECT 'Zero or negative amounts' AS issue_type,
            COUNT(*) AS issue_count
-    FROM BRONZE.BRONZE_TRANSACTIONS
+    FROM BRONZE.RAW_TRANSACTIONS
     WHERE transaction_amount <= 0
     HAVING COUNT(*) > 0
 )

@@ -101,7 +101,7 @@ run-all: generate-customers upload-customers load-customers generate-transaction
 	@echo "========================================="
 	@echo ""
 	@echo "Next steps:"
-	@echo "  1. Check data: snowsql -c $(SNOWFLAKE_PROFILE) -q 'SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_CUSTOMERS;'"
+	@echo "  1. Check data: snowsql -c $(SNOWFLAKE_PROFILE) -q 'SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.RAW_CUSTOMERS;'"
 	@echo "  2. View results in Streamlit app"
 	@echo "  3. Run EDA: snowsql -c $(SNOWFLAKE_PROFILE) -f snowflake/eda/04_delta_analysis.sql"
 
@@ -139,7 +139,7 @@ load-customers:
 		exit 1; \
 	fi
 	snowsql -c $(SNOWFLAKE_PROFILE) -f snowflake/load/load_customers_bulk.sql
-	@echo "✓ Customers loaded to BRONZE.BRONZE_CUSTOMERS"
+	@echo "✓ Customers loaded to BRONZE.RAW_CUSTOMERS"
 
 # Step 4: Generate transactions in Snowflake
 generate-transactions:

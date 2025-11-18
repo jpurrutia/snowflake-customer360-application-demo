@@ -81,7 +81,7 @@ snowsql -c default -f generate_transactions.sql
 
 **Monitor progress**:
 ```sql
-SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS;
+SELECT COUNT(*) FROM CUSTOMER_ANALYTICS.BRONZE.RAW_TRANSACTIONS;
 ```
 
 ---

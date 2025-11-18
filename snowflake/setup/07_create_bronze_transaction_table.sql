@@ -12,10 +12,10 @@ USE DATABASE CUSTOMER_ANALYTICS;
 USE SCHEMA BRONZE;
 
 -- ============================================================================
--- Create BRONZE_TRANSACTIONS Table
+-- Create RAW_TRANSACTIONS Table
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS BRONZE.BRONZE_TRANSACTIONS (
+CREATE TABLE IF NOT EXISTS BRONZE.RAW_TRANSACTIONS (
     -- Transaction attributes from source data
     transaction_id STRING NOT NULL,
     customer_id STRING NOT NULL,
@@ -52,7 +52,7 @@ SCHEMA DESIGN:
 
 COLUMNS:
 - transaction_id: Unique transaction identifier (TXN00000000001 format)
-- customer_id: Foreign key to BRONZE_CUSTOMERS (CUST00000001 format)
+- customer_id: Foreign key to RAW_CUSTOMERS (CUST00000001 format)
 - transaction_date: Transaction timestamp
 - transaction_amount: Transaction amount in USD
 - merchant_name: Merchant identifier
@@ -87,20 +87,20 @@ NEXT STEPS:
 SELECT 'Bronze transactions table created successfully' AS status;
 
 -- Show table structure
-DESC TABLE BRONZE.BRONZE_TRANSACTIONS;
+DESC TABLE BRONZE.RAW_TRANSACTIONS;
 
 -- Show table comment
-SHOW TABLES LIKE 'BRONZE_TRANSACTIONS' IN SCHEMA BRONZE;
+SHOW TABLES LIKE 'RAW_TRANSACTIONS' IN SCHEMA BRONZE;
 
 -- ============================================================================
 -- Grant Permissions
 -- ============================================================================
 
 -- Grant read access to analysts
-GRANT SELECT ON TABLE BRONZE.BRONZE_TRANSACTIONS TO ROLE DATA_ANALYST;
+GRANT SELECT ON TABLE BRONZE.RAW_TRANSACTIONS TO ROLE DATA_ANALYST;
 
 -- Grant read access to marketing team
-GRANT SELECT ON TABLE BRONZE.BRONZE_TRANSACTIONS TO ROLE MARKETING_MANAGER;
+GRANT SELECT ON TABLE BRONZE.RAW_TRANSACTIONS TO ROLE MARKETING_MANAGER;
 
 SELECT 'Permissions granted to DATA_ANALYST and MARKETING_MANAGER roles' AS status;
 
@@ -113,7 +113,7 @@ SELECT 'Permissions granted to DATA_ANALYST and MARKETING_MANAGER roles' AS stat
 -- This improves performance for date-range queries and monthly aggregations
 -- Recommended to add AFTER initial bulk load completes
 
-ALTER TABLE BRONZE.BRONZE_TRANSACTIONS
+ALTER TABLE BRONZE.RAW_TRANSACTIONS
 CLUSTER BY (transaction_date);
 
 SELECT 'Clustering key added on transaction_date' AS status;
@@ -124,7 +124,7 @@ SELECT 'Clustering key added on transaction_date' AS status;
 -- Use this if queries frequently filter by both date range and customer
 -- Cost: Higher clustering maintenance overhead
 
-ALTER TABLE BRONZE.BRONZE_TRANSACTIONS
+ALTER TABLE BRONZE.RAW_TRANSACTIONS
 CLUSTER BY (transaction_date, customer_id);
 
 SELECT 'Clustering key added on (transaction_date, customer_id)' AS status;
@@ -138,13 +138,13 @@ SELECT 'Clustering key added on (transaction_date, customer_id)' AS status;
 COMMON QUERIES:
 
 1. Count total transactions:
-   SELECT COUNT(*) FROM BRONZE.BRONZE_TRANSACTIONS;
+   SELECT COUNT(*) FROM BRONZE.RAW_TRANSACTIONS;
 
 2. Date range analysis:
    SELECT
        MIN(transaction_date) AS earliest,
        MAX(transaction_date) AS latest
-   FROM BRONZE.BRONZE_TRANSACTIONS;
+   FROM BRONZE.RAW_TRANSACTIONS;
 
 3. Customer transaction count:
    SELECT
@@ -190,7 +190,7 @@ PERFORMANCE TIPS:
 
 3. Storage Optimization:
    - Transaction data compresses well (expect ~10:1 compression)
-   - Monitor storage with: SHOW TABLE BRONZE.BRONZE_TRANSACTIONS
+   - Monitor storage with: SHOW TABLE BRONZE.RAW_TRANSACTIONS
 
 4. Warehouse Sizing:
    - XSMALL: Acceptable for ad-hoc queries (< 30 seconds)

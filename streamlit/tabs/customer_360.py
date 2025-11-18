@@ -174,15 +174,20 @@ def render(execute_query, conn):
         spend_change = customer['SPEND_CHANGE_PCT'] if pd.notna(customer['SPEND_CHANGE_PCT']) else 0
         delta_color = "normal" if spend_change >= 0 else "inverse"
         st.metric(
-            "Spend Change (MoM)",
+            "90-Day Spend Change",
             f"{spend_change:+.1f}%",
             delta=f"{spend_change:+.1f}%",
-            delta_color=delta_color
+            delta_color=delta_color,
+            help="Comparing last 90 days vs prior 90 days"
         )
 
     with col2:
         avg_monthly = customer['AVG_MONTHLY_SPEND'] if pd.notna(customer['AVG_MONTHLY_SPEND']) else 0
-        st.metric("Avg Monthly Spend", f"${avg_monthly:,.0f}")
+        st.metric(
+            "Average Monthly Spend (Last 90 Days)",
+            f"${avg_monthly:,.0f}",
+            help="Last 90 days of spend divided by 3 months"
+        )
 
     # ========== TRANSACTION HISTORY ==========
 

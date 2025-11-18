@@ -45,67 +45,27 @@ Usage:
 ============================================================================
 #}
 
-WITH customer_spending AS (
+-- Use pre-aggregated intermediate model (4x faster!)
+WITH customer_metrics AS (
     SELECT
-        c.customer_id,
-        c.customer_key,
+        customer_id,
+        customer_key,
 
-        -- Overall metrics (all-time)
-        COUNT(f.transaction_key) AS total_transactions,
-        SUM(f.transaction_amount) AS lifetime_value,
-        AVG(f.transaction_amount) AS avg_transaction_value,
-        MIN(f.transaction_date) AS first_transaction_date,
-        MAX(f.transaction_date) AS last_transaction_date,
+        -- All metrics pre-calculated in int_customer_transaction_summary
+        total_transactions,
+        lifetime_value,
+        avg_transaction_value,
+        first_transaction_date,
+        last_transaction_date,
+        tenure_months,
+        spend_last_90_days,
+        spend_prior_90_days,
+        spend_change_pct,
+        avg_monthly_spend,
+        travel_spend_pct,
+        necessities_spend_pct
 
-        -- Rolling 90-day metrics
-        SUM(CASE
-            WHEN f.transaction_date >= DATEADD('day', -90, CURRENT_DATE())
-            THEN f.transaction_amount ELSE 0
-        END) AS spend_last_90_days,
-
-        SUM(CASE
-            WHEN f.transaction_date >= DATEADD('day', -180, CURRENT_DATE())
-                 AND f.transaction_date < DATEADD('day', -90, CURRENT_DATE())
-            THEN f.transaction_amount ELSE 0
-        END) AS spend_prior_90_days,
-
-        -- Category analysis
-        SUM(CASE
-            WHEN cat.category_name IN ('Travel', 'Airlines', 'Hotels')
-            THEN f.transaction_amount ELSE 0
-        END) / NULLIF(SUM(f.transaction_amount), 0) * 100 AS travel_spend_pct,
-
-        SUM(CASE
-            WHEN cat.category_name IN ('Grocery', 'Gas', 'Utilities')
-            THEN f.transaction_amount ELSE 0
-        END) / NULLIF(SUM(f.transaction_amount), 0) * 100 AS necessities_spend_pct,
-
-        -- Tenure
-        DATEDIFF('month', MIN(f.transaction_date), CURRENT_DATE()) AS tenure_months
-
-    FROM {{ ref('dim_customer') }} c
-    LEFT JOIN {{ ref('fct_transactions') }} f
-        ON c.customer_key = f.customer_key
-    LEFT JOIN {{ ref('dim_merchant_category') }} cat
-        ON f.merchant_category_key = cat.category_key
-    WHERE c.is_current = TRUE
-    GROUP BY c.customer_id, c.customer_key
-),
-
-spending_trends AS (
-    SELECT
-        *,
-        -- Calculate month-over-month change
-        CASE
-            WHEN spend_prior_90_days > 0
-            THEN ((spend_last_90_days - spend_prior_90_days) / spend_prior_90_days) * 100
-            ELSE 0
-        END AS spend_change_pct,
-
-        -- Monthly average
-        spend_last_90_days / 3 AS avg_monthly_spend
-
-    FROM customer_spending
+    FROM {{ ref('int_customer_transaction_summary') }}
 ),
 
 segment_assignment AS (
@@ -139,7 +99,7 @@ segment_assignment AS (
 
         CURRENT_DATE() AS segment_assigned_date
 
-    FROM spending_trends
+    FROM customer_metrics
 )
 
 SELECT

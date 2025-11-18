@@ -3,7 +3,7 @@
 -- ============================================================================
 -- Purpose: Load ~13.5M transactions from S3 with transactional validation
 -- Source: @CUSTOMER_ANALYTICS.BRONZE.transaction_stage_historical
--- Target: BRONZE.BRONZE_TRANSACTIONS
+-- Target: BRONZE.RAW_TRANSACTIONS
 -- Method: COPY INTO with transaction-based validation
 -- ============================================================================
 
@@ -20,11 +20,11 @@ SELECT 'Starting transaction bulk load process...' AS step;
 
 -- Verify target table exists
 SELECT
-    'Verifying BRONZE_TRANSACTIONS table exists' AS check_name,
+    'Verifying RAW_TRANSACTIONS table exists' AS check_name,
     COUNT(*) AS table_exists
 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = 'BRONZE'
-    AND TABLE_NAME = 'BRONZE_TRANSACTIONS';
+    AND TABLE_NAME = 'RAW_TRANSACTIONS';
 
 -- Verify stage exists and has files
 SELECT 'Checking for files in transaction stage...' AS step;
@@ -44,7 +44,7 @@ BEGIN TRANSACTION;
     -- ========================================================================
 
     -- Uncomment if this is a reload and you want to clear existing data
-    -- TRUNCATE TABLE BRONZE.BRONZE_TRANSACTIONS;
+    -- TRUNCATE TABLE BRONZE.RAW_TRANSACTIONS;
     -- SELECT 'Table truncated for reload' AS step;
 
     -- ========================================================================
@@ -53,7 +53,7 @@ BEGIN TRANSACTION;
 
     SELECT 'Loading transactions from S3...' AS step;
 
-    COPY INTO BRONZE.BRONZE_TRANSACTIONS (
+    COPY INTO BRONZE.RAW_TRANSACTIONS (
         transaction_id,
         customer_id,
         transaction_date,
@@ -111,7 +111,7 @@ BEGIN TRANSACTION;
     SET max_expected = $expected_rows * (1 + $tolerance_pct);  -- 16.875M
 
     -- Get actual row count
-    SET actual_rows = (SELECT COUNT(*) FROM BRONZE.BRONZE_TRANSACTIONS);
+    SET actual_rows = (SELECT COUNT(*) FROM BRONZE.RAW_TRANSACTIONS);
 
     -- Display validation results
     SELECT
@@ -149,14 +149,14 @@ BEGIN TRANSACTION;
     -- Check for NULL transaction IDs
     SET null_txn_ids = (
         SELECT COUNT(*)
-        FROM BRONZE.BRONZE_TRANSACTIONS
+        FROM BRONZE.RAW_TRANSACTIONS
         WHERE transaction_id IS NULL
     );
 
     -- Check for NULL customer IDs
     SET null_customer_ids = (
         SELECT COUNT(*)
-        FROM BRONZE.BRONZE_TRANSACTIONS
+        FROM BRONZE.RAW_TRANSACTIONS
         WHERE customer_id IS NULL
     );
 
@@ -165,7 +165,7 @@ BEGIN TRANSACTION;
         SELECT COUNT(*)
         FROM (
             SELECT transaction_id
-            FROM BRONZE.BRONZE_TRANSACTIONS
+            FROM BRONZE.RAW_TRANSACTIONS
             GROUP BY transaction_id
             HAVING COUNT(*) > 1
         )
@@ -226,7 +226,7 @@ SELECT
     ROUND(MIN(transaction_amount), 2) AS min_amount,
     ROUND(MAX(transaction_amount), 2) AS max_amount,
     ROUND(SUM(transaction_amount), 2) AS total_volume
-FROM BRONZE.BRONZE_TRANSACTIONS;
+FROM BRONZE.RAW_TRANSACTIONS;
 
 -- Status breakdown
 SELECT
@@ -234,7 +234,7 @@ SELECT
     status,
     COUNT(*) AS txn_count,
     ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY status
 ORDER BY txn_count DESC;
 
@@ -244,7 +244,7 @@ SELECT
     channel,
     COUNT(*) AS txn_count,
     ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS percentage
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY channel
 ORDER BY txn_count DESC;
 
@@ -254,7 +254,7 @@ SELECT
     merchant_category,
     COUNT(*) AS txn_count,
     ROUND(AVG(transaction_amount), 2) AS avg_amount
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY merchant_category
 ORDER BY txn_count DESC
 LIMIT 10;
@@ -266,7 +266,7 @@ SELECT
     COUNT(*) AS txn_count,
     ROUND(AVG(transaction_amount), 2) AS avg_amount,
     ROUND(SUM(transaction_amount), 2) AS total_amount
-FROM BRONZE.BRONZE_TRANSACTIONS
+FROM BRONZE.RAW_TRANSACTIONS
 GROUP BY DATE_TRUNC('month', transaction_date)
 ORDER BY month;
 
@@ -282,12 +282,12 @@ SELECT
     CURRENT_TIMESTAMP() AS run_timestamp,
     'bronze' AS layer,
     'BRONZE' AS schema_name,
-    'BRONZE_TRANSACTIONS' AS table_name,
+    'RAW_TRANSACTIONS' AS table_name,
     COUNT(*) AS record_count,
     COUNT(DISTINCT transaction_id) AS distinct_keys,
     COUNT_IF(transaction_id IS NULL) AS null_key_count,
     COUNT(*) - COUNT(DISTINCT transaction_id) AS duplicate_key_count
-FROM BRONZE.BRONZE_TRANSACTIONS;
+FROM BRONZE.RAW_TRANSACTIONS;
 
 SELECT '✓ Observability record created' AS step;
 
@@ -300,7 +300,7 @@ SELECT 'Displaying load history...' AS step;
 -- Show COPY INTO history for this table
 SELECT *
 FROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(
-    TABLE_NAME => 'CUSTOMER_ANALYTICS.BRONZE.BRONZE_TRANSACTIONS',
+    TABLE_NAME => 'CUSTOMER_ANALYTICS.BRONZE.RAW_TRANSACTIONS',
     START_TIME => DATEADD(hours, -1, CURRENT_TIMESTAMP())
 ))
 ORDER BY LAST_LOAD_TIME DESC;
@@ -316,8 +316,8 @@ SELECT '========================================' AS summary;
 SELECT
     'Summary' AS info,
     'Transactions loaded successfully' AS message,
-    (SELECT COUNT(*) FROM BRONZE.BRONZE_TRANSACTIONS) AS total_transactions,
-    (SELECT COUNT(DISTINCT customer_id) FROM BRONZE.BRONZE_TRANSACTIONS) AS unique_customers;
+    (SELECT COUNT(*) FROM BRONZE.RAW_TRANSACTIONS) AS total_transactions,
+    (SELECT COUNT(DISTINCT customer_id) FROM BRONZE.RAW_TRANSACTIONS) AS unique_customers;
 
 SELECT 'Next Steps:' AS info;
 SELECT '1. Run snowflake/load/verify_transaction_load.sql for detailed validation' AS step;

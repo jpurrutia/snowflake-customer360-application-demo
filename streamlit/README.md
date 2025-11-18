@@ -36,7 +36,7 @@ Interactive Streamlit dashboard for the Customer 360 Analytics Platform. Enables
 - **Customer search** by ID, name, or email (partial match)
 - **Profile header** with demographics, segment, churn risk alerts
 - **Key metrics**: LTV, avg transaction, spend (90d), days since last transaction
-- **Spending trends**: MoM spend change, avg monthly spend
+- **Spending trends**: 90-day spend change, avg monthly spend
 - **Transaction history** (up to 1,000 recent transactions)
 - **Transaction filters**: date range, category, status
 - **Visualizations**:

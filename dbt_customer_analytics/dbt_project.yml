@@ -38,6 +38,14 @@ models:
     +materialized: table
     +schema: silver  # Default to silver schema
 
+    # Raw models (Landing → Bronze)
+    raw:
+      +materialized: incremental  # Incremental for large data loads
+      +schema: bronze
+      +tags: ["raw", "bronze", "ingestion"]
+      +docs:
+        node_color: "#CD7F32"  # Bronze color for raw data
+
     # Staging models (Bronze → Silver)
     staging:
       +materialized: view  # Views for staging (lightweight)
@@ -46,9 +54,9 @@ models:
       +docs:
         node_color: "#F4A460"  # Sandy brown for staging
 
-    # Intermediate models (transformations within Silver)
+    # Intermediate models (reusable aggregations in Silver)
     intermediate:
-      +materialized: view
+      +materialized: table  # Tables for performance (pre-aggregated)
       +schema: silver
       +tags: ["intermediate", "silver"]
       +docs:
@@ -85,15 +93,17 @@ on-run-start:
      INSERT INTO {{ target.database }}.OBSERVABILITY.PIPELINE_RUN_METADATA (
        run_id,
        run_timestamp,
+       pipeline_name,
        status,
-       target_name,
+       start_time,
        dbt_version
      )
      VALUES (
        '{{ invocation_id }}',
        '{{ run_started_at }}',
+       'dbt_{{ target.name }}',
        'STARTED',
-       '{{ target.name }}',
+       '{{ run_started_at }}',
        '{{ dbt_version }}'
      )
      {% endif %}"
@@ -117,15 +127,14 @@ on-run-end:
   - "{% if target.name != 'test' %}
      {% set models_run = results | length %}
      {% set models_failed = results | selectattr('status', 'equalto', 'error') | list | length %}
-     {% set models_passed = models_run - models_failed %}
      {% set status = 'SUCCESS' if models_failed == 0 else 'FAILED' %}
      UPDATE {{ target.database }}.OBSERVABILITY.PIPELINE_RUN_METADATA
      SET
        status = '{{ status }}',
        models_run = {{ models_run }},
-       models_passed = {{ models_passed }},
        models_failed = {{ models_failed }},
-       completed_timestamp = CURRENT_TIMESTAMP()
+       end_time = CURRENT_TIMESTAMP(),
+       duration_seconds = DATEDIFF('second', start_time, CURRENT_TIMESTAMP())
      WHERE run_id = '{{ invocation_id }}'
      {% endif %}"
 

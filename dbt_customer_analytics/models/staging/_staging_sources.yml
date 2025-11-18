@@ -9,7 +9,7 @@ version: 2
 
 sources:
   - name: bronze
-    description: "Bronze layer containing raw data loaded from S3"
+    description: "Bronze layer containing raw data loaded via dbt from stages (internal/external)"
     database: CUSTOMER_ANALYTICS
     schema: BRONZE
 
@@ -24,12 +24,12 @@ sources:
       # ======================================================================
       - name: raw_customers
         description: |
-          Raw customer data loaded from S3.
+          Raw customer data loaded from internal stage.
 
-          **Source**: S3 staged customer CSV files
+          **Source**: @customer_data_stage (Parquet files from GENERATE_CUSTOMERS procedure)
           **Row Count**: 50,000 customers
-          **Load Method**: COPY INTO bulk load
-          **Refresh**: One-time historical load
+          **Load Method**: dbt Bronze model (COPY INTO from stage)
+          **Refresh**: dbt run --select bronze.raw_customers
 
           **Quality Notes**:
           - All customer_ids are unique
@@ -132,12 +132,12 @@ sources:
       # ======================================================================
       - name: raw_transactions
         description: |
-          Raw transaction data loaded from S3.
+          Raw transaction data loaded from external S3 stage.
 
-          **Source**: S3 staged transaction CSV files (GZIP compressed)
+          **Source**: @transaction_stage_historical (GZIP compressed CSV files from S3)
           **Row Count**: ~13.5 million transactions
-          **Load Method**: COPY INTO bulk load
-          **Refresh**: One-time historical load (18 months)
+          **Load Method**: dbt Bronze model (COPY INTO from S3 stage)
+          **Refresh**: dbt run --select bronze.raw_transactions
 
           **Quality Notes**:
           - All transaction_ids should be unique

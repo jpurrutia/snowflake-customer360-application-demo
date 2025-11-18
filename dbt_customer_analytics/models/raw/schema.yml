@@ -1,0 +1,87 @@
+version: 2
+
+models:
+  - name: raw_customers
+    description: |
+      Bronze layer model that loads customer data from internal stage (@customer_data_stage).
+
+      **Data Flow**:
+      1. GENERATE_CUSTOMERS() procedure writes Parquet to @customer_data_stage
+      2. This dbt model copies from stage to BRONZE.RAW_CUSTOMERS table
+      3. Staging models clean and normalize this data
+
+      **Materialization**: Incremental (unique_key: customer_id)
+      **Source**: Parquet files in @CUSTOMER_ANALYTICS.BRONZE.customer_data_stage
+      **Refresh**: `dbt run --select bronze.raw_customers`
+
+    columns:
+      - name: customer_id
+        description: "Unique customer identifier"
+        tests:
+          - unique
+          - not_null
+
+      - name: first_name
+        description: "Customer first name"
+
+      - name: last_name
+        description: "Customer last name"
+
+      - name: email
+        description: "Customer email address"
+        tests:
+          - not_null
+
+      - name: customer_segment
+        description: "Behavioral segment assigned during generation"
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'High-Value Travelers'
+                - 'Stable Mid-Spenders'
+                - 'Budget-Conscious'
+                - 'Declining'
+                - 'New & Growing'
+
+  - name: raw_transactions
+    description: |
+      Bronze layer model that loads transaction data from external S3 stage.
+
+      **Data Flow**:
+      1. Transaction CSVs uploaded to S3
+      2. This dbt model copies from @transaction_stage_historical to BRONZE.RAW_TRANSACTIONS
+      3. Staging models clean and deduplicate this data
+
+      **Materialization**: Incremental (unique_key: transaction_id)
+      **Source**: GZIP CSV files in @CUSTOMER_ANALYTICS.BRONZE.transaction_stage_historical
+      **Refresh**: `dbt run --select bronze.raw_transactions`
+
+    columns:
+      - name: transaction_id
+        description: "Unique transaction identifier"
+        tests:
+          - not_null
+          # Uniqueness tested in staging layer due to volume
+
+      - name: customer_id
+        description: "References raw_customers.customer_id"
+        tests:
+          - not_null
+          # Relationship tested in staging layer due to volume
+
+      - name: transaction_date
+        description: "Transaction timestamp"
+        tests:
+          - not_null
+
+      - name: transaction_amount
+        description: "Transaction amount in USD"
+        tests:
+          - not_null
+
+      - name: status
+        description: "Transaction status"
+        tests:
+          - accepted_values:
+              values: ['approved', 'declined']

@@ -50,53 +50,25 @@ Usage:
 ============================================================================
 #}
 
+-- Use pre-aggregated intermediate model (much faster!)
 SELECT
-    c.customer_id,
-    c.customer_key,
+    i.customer_id,
+    i.customer_key,
     seg.customer_segment,
 
-    -- Average Transaction Value
-    COALESCE(AVG(f.transaction_amount), 0) AS avg_transaction_value,
-
-    -- Spending variability
-    COALESCE(STDDEV(f.transaction_amount), 0) AS transaction_value_stddev,
-
-    -- Transaction range
-    COALESCE(MIN(f.transaction_amount), 0) AS min_transaction_value,
-    COALESCE(MAX(f.transaction_amount), 0) AS max_transaction_value,
-
-    -- Transaction count (for context)
-    COUNT(f.transaction_key) AS transaction_count,
-
-    -- Median transaction value (using PERCENTILE_CONT)
-    COALESCE(
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY f.transaction_amount),
-        0
-    ) AS median_transaction_value,
-
-    -- Spending consistency flag
-    CASE
-        WHEN STDDEV(f.transaction_amount) IS NULL THEN 'No Transactions'
-        WHEN STDDEV(f.transaction_amount) < 50 THEN 'Consistent'
-        WHEN STDDEV(f.transaction_amount) < 200 THEN 'Moderate'
-        ELSE 'Variable'
-    END AS spending_consistency,
+    -- All metrics pre-calculated in int_customer_transaction_summary
+    i.avg_transaction_value,
+    i.transaction_value_stddev,
+    i.min_transaction_value,
+    i.max_transaction_value,
+    i.total_transactions AS transaction_count,
+    i.median_transaction_value,
+    i.spending_consistency,
 
     -- Metadata
-    CURRENT_DATE() AS metric_calculated_date
+    i.metric_calculated_date
 
-FROM {{ ref('dim_customer') }} c
-
-LEFT JOIN {{ ref('fct_transactions') }} f
-    ON c.customer_key = f.customer_key
-    AND f.status = 'approved'  -- Only approved transactions
+FROM {{ ref('int_customer_transaction_summary') }} i
 
 LEFT JOIN {{ ref('customer_segments') }} seg
-    ON c.customer_id = seg.customer_id
-
-WHERE c.is_current = TRUE
-
-GROUP BY
-    c.customer_id,
-    c.customer_key,
-    seg.customer_segment
+    ON i.customer_id = seg.customer_id
