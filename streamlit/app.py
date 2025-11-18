@@ -16,108 +16,149 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for Snowflake-inspired professional theme
+# Custom CSS for accessible Snowflake theme (following Snowflake accessibility guidelines)
 st.markdown("""
 <style>
-    /* Snowflake Brand Colors */
+    /* Snowflake Brand Colors - Accessible Palette */
     :root {
-        --snowflake-blue: #29B5E8;
-        --snowflake-dark-blue: #1A73E8;
-        --snowflake-navy: #0E3E66;
-        --midnight: #000000;
-        --medium-gray: #5B5B5B;
-        --accent-orange: #FF9F36;
-        --accent-purple: #7254A3;
+        --snowflake-blue: #29B5E8;        /* Use with BLACK text (28pt+ only) */
+        --navy-blue: #0E3E66;             /* Use with WHITE text */
+        --midnight: #000000;               /* Use with WHITE text */
+        --medium-gray: #5B5B5B;           /* Use with WHITE text */
+        --light-gray: #f8f9fa;            /* Use with BLACK text */
+        --white: #ffffff;
+        --accent-orange: #FF9F36;         /* Use with BLACK text */
     }
 
-    /* Main header styling */
-    .main-header {
-        background: linear-gradient(135deg, var(--snowflake-blue) 0%, var(--snowflake-dark-blue) 100%);
+    /* Main app background - soft, easy on eyes */
+    .stApp {
+        background-color: var(--light-gray);
+    }
+
+    /* Main content background */
+    .main .block-container {
+        background-color: var(--white);
         padding: 2rem;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-        color: white;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-top: 1rem;
     }
 
-    .main-header h1 {
-        color: white !important;
+    /* Headers - Navy blue with white text for accessibility */
+    h1, h2, h3 {
+        color: var(--navy-blue) !important;
         font-weight: 600;
-        margin: 0;
-        font-size: 2.5rem;
     }
 
-    .main-header p {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1.1rem;
-        margin: 0.5rem 0 0 0;
-    }
-
-    /* Metric cards */
+    /* Metric cards - accessible contrast */
     [data-testid="stMetricValue"] {
         font-size: 2rem;
         font-weight: 600;
-        color: var(--snowflake-dark-blue);
+        color: var(--navy-blue);
     }
 
     [data-testid="stMetricLabel"] {
         font-weight: 500;
         color: var(--medium-gray);
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
-    /* Sidebar styling */
+    [data-testid="stMetricDelta"] {
+        font-size: 0.875rem;
+    }
+
+    /* Sidebar - clean and professional */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
+        background-color: var(--white);
+        border-right: 1px solid #e0e0e0;
     }
 
-    /* Button styling */
+    [data-testid="stSidebar"] h3 {
+        color: var(--navy-blue) !important;
+        font-size: 1rem;
+    }
+
+    /* Buttons - Navy blue for better contrast */
     .stButton > button {
-        background-color: var(--snowflake-blue);
-        color: white;
+        background-color: var(--navy-blue);
+        color: var(--white);
         border: none;
         border-radius: 6px;
-        padding: 0.5rem 2rem;
+        padding: 0.5rem 1.5rem;
         font-weight: 500;
-        transition: all 0.3s ease;
+        font-size: 1rem;
+        transition: all 0.2s ease;
     }
 
     .stButton > button:hover {
-        background-color: var(--snowflake-dark-blue);
-        box-shadow: 0 4px 12px rgba(41, 181, 232, 0.3);
+        background-color: var(--midnight);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 6px 6px 0 0;
-        padding: 10px 20px;
-        font-weight: 500;
-    }
-
-    .stTabs [aria-selected="true"] {
+    .stButton > button[kind="primary"] {
         background-color: var(--snowflake-blue);
-        color: white;
+        color: var(--midnight);
+        font-weight: 600;
     }
 
-    /* Card-like containers */
-    div[data-testid="stExpander"] {
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    .stButton > button[kind="primary"]:hover {
+        background-color: #1A9FCC;
     }
 
-    /* Info boxes */
+    /* Radio buttons - better visibility */
+    [data-testid="stRadio"] label {
+        font-size: 1rem;
+        color: var(--midnight);
+    }
+
+    /* Text inputs - clear borders */
+    input, textarea, select {
+        border: 2px solid #e0e0e0 !important;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    input:focus, textarea:focus, select:focus {
+        border-color: var(--navy-blue) !important;
+        box-shadow: 0 0 0 2px rgba(14, 62, 102, 0.1);
+    }
+
+    /* Info/Warning/Success boxes - accessible colors */
     .stAlert {
-        border-radius: 8px;
-        border-left: 4px solid var(--snowflake-blue);
+        border-radius: 6px;
+        border-left: 4px solid;
+        font-size: 1rem;
+    }
+
+    [data-testid="stAlert"][data-baseweb="notification"] {
+        background-color: rgba(41, 181, 232, 0.1);
+    }
+
+    /* Tables - better readability */
+    [data-testid="stDataFrame"] {
+        font-size: 0.95rem;
+    }
+
+    [data-testid="stDataFrame"] th {
+        background-color: var(--light-gray) !important;
+        color: var(--navy-blue) !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
     }
 
     /* Professional font */
     html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+        color: var(--midnight);
+    }
+
+    /* Plotly charts - remove harsh white backgrounds */
+    .js-plotly-plot {
+        background-color: transparent !important;
     }
 </style>
 """, unsafe_allow_html=True)
