@@ -10,8 +10,8 @@ import os
 
 # Page configuration
 st.set_page_config(
-    page_title="Customer 360 Analytics | Powered by Snowflake",
-    page_icon="❄️",
+    page_title="SpendSight | Powered by Snowflake",
+    page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -24,37 +24,40 @@ st.markdown("""
         --snowflake-blue: #29B5E8;        /* Use with BLACK text (28pt+ only) */
         --navy-blue: #0E3E66;             /* Use with WHITE text */
         --midnight: #000000;               /* Use with WHITE text */
-        --medium-gray: #5B5B5B;           /* Use with WHITE text */
-        --light-gray: #f8f9fa;            /* Use with BLACK text */
+        --dark-bg: #0a1628;               /* Dark blue background */
+        --card-bg: #12263f;               /* Card background */
+        --medium-gray: #94a3b8;           /* Light gray for text */
+        --light-gray: #1e3a5f;            /* Slightly lighter than card */
         --white: #ffffff;
         --accent-orange: #FF9F36;         /* Use with BLACK text */
     }
 
-    /* Main app background - soft, easy on eyes */
+    /* Main app background - dark theme */
     .stApp {
-        background-color: var(--light-gray);
+        background-color: var(--dark-bg);
+        color: var(--white);
     }
 
     /* Main content background */
     .main .block-container {
-        background-color: var(--white);
+        background-color: var(--card-bg);
         padding: 2rem;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         margin-top: 1rem;
     }
 
-    /* Headers - Navy blue with white text for accessibility */
+    /* Headers - White text for dark theme */
     h1, h2, h3 {
-        color: var(--navy-blue) !important;
+        color: var(--white) !important;
         font-weight: 600;
     }
 
-    /* Metric cards - accessible contrast */
+    /* Metric cards - dark theme */
     [data-testid="stMetricValue"] {
         font-size: 2rem;
         font-weight: 600;
-        color: var(--navy-blue);
+        color: var(--snowflake-blue);
     }
 
     [data-testid="stMetricLabel"] {
@@ -67,24 +70,29 @@ st.markdown("""
 
     [data-testid="stMetricDelta"] {
         font-size: 0.875rem;
+        color: var(--medium-gray);
     }
 
-    /* Sidebar - clean and professional */
+    /* Sidebar - dark theme */
     [data-testid="stSidebar"] {
-        background-color: var(--white);
-        border-right: 1px solid #e0e0e0;
+        background-color: var(--card-bg);
+        border-right: 1px solid var(--light-gray);
     }
 
     [data-testid="stSidebar"] h3 {
-        color: var(--navy-blue) !important;
+        color: var(--white) !important;
         font-size: 1rem;
     }
 
-    /* Buttons - Navy blue for better contrast */
+    [data-testid="stSidebar"] .stMarkdown {
+        color: var(--medium-gray);
+    }
+
+    /* Buttons - Snowflake blue for dark theme */
     .stButton > button {
-        background-color: var(--navy-blue);
+        background-color: var(--light-gray);
         color: var(--white);
-        border: none;
+        border: 1px solid var(--snowflake-blue);
         border-radius: 6px;
         padding: 0.5rem 1.5rem;
         font-weight: 500;
@@ -93,36 +101,40 @@ st.markdown("""
     }
 
     .stButton > button:hover {
-        background-color: var(--midnight);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        background-color: var(--snowflake-blue);
+        color: var(--dark-bg);
+        box-shadow: 0 2px 8px rgba(41, 181, 232, 0.3);
     }
 
     .stButton > button[kind="primary"] {
         background-color: var(--snowflake-blue);
-        color: var(--midnight);
+        color: var(--dark-bg);
         font-weight: 600;
+        border: none;
     }
 
     .stButton > button[kind="primary"]:hover {
         background-color: #1A9FCC;
     }
 
-    /* Radio buttons - better visibility */
+    /* Radio buttons - dark theme */
     [data-testid="stRadio"] label {
         font-size: 1rem;
-        color: var(--midnight);
+        color: var(--white);
     }
 
-    /* Text inputs - clear borders */
+    /* Text inputs - dark theme */
     input, textarea, select {
-        border: 2px solid #e0e0e0 !important;
+        background-color: var(--light-gray) !important;
+        border: 2px solid var(--light-gray) !important;
         border-radius: 4px;
         font-size: 1rem;
+        color: var(--white) !important;
     }
 
     input:focus, textarea:focus, select:focus {
-        border-color: var(--navy-blue) !important;
-        box-shadow: 0 0 0 2px rgba(14, 62, 102, 0.1);
+        border-color: var(--snowflake-blue) !important;
+        box-shadow: 0 0 0 2px rgba(41, 181, 232, 0.2);
     }
 
     /* Info/Warning/Success boxes - accessible colors */
@@ -136,29 +148,59 @@ st.markdown("""
         background-color: rgba(41, 181, 232, 0.1);
     }
 
-    /* Tables - better readability */
+    /* Tables - dark theme */
     [data-testid="stDataFrame"] {
         font-size: 0.95rem;
+        background-color: var(--card-bg) !important;
     }
 
     [data-testid="stDataFrame"] th {
         background-color: var(--light-gray) !important;
-        color: var(--navy-blue) !important;
+        color: var(--white) !important;
         font-weight: 600 !important;
         text-transform: uppercase;
         font-size: 0.85rem;
         letter-spacing: 0.5px;
     }
 
+    [data-testid="stDataFrame"] td {
+        color: var(--medium-gray) !important;
+        background-color: var(--card-bg) !important;
+    }
+
     /* Professional font */
     html, body, [class*="css"] {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
-        color: var(--midnight);
+        color: var(--white);
     }
 
-    /* Plotly charts - remove harsh white backgrounds */
+    /* Plotly charts - dark theme */
     .js-plotly-plot {
         background-color: transparent !important;
+    }
+
+    .js-plotly-plot .plotly .modebar {
+        background-color: transparent !important;
+    }
+
+    /* Selectbox and multiselect - dark theme */
+    [data-baseweb="select"] {
+        background-color: var(--light-gray) !important;
+    }
+
+    [data-baseweb="select"] > div {
+        background-color: var(--light-gray) !important;
+        color: var(--white) !important;
+    }
+
+    /* Expander - dark theme */
+    [data-testid="stExpander"] {
+        background-color: var(--light-gray);
+        border: 1px solid var(--light-gray);
+    }
+
+    [data-testid="stExpander"] summary {
+        color: var(--white);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -233,25 +275,32 @@ def execute_query(query, params=None):
 
 # ============= HEADER =============
 
-st.markdown("""
-<div class="main-header">
-    <h1>❄️ Customer 360 Analytics</h1>
-    <p>Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence</p>
-</div>
-""", unsafe_allow_html=True)
+# Display SpendSight logo
+col_logo, col_title = st.columns([1, 3])
+
+with col_logo:
+    st.image("assets/spendsight.png", width=200)
+
+with col_title:
+    st.markdown("""
+    <div style="padding-top: 1.5rem;">
+        <h1 style="margin: 0;">SpendSight</h1>
+        <p style="color: var(--medium-gray); margin: 0;">Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ============= SIDEBAR NAVIGATION =============
 
 with st.sidebar:
-    st.markdown("### ❄️ Customer 360")
-    st.markdown("##### Analytics Platform")
+    # SpendSight logo in sidebar
+    st.image("assets/spendsight.png", width=180)
+    st.markdown("##### Customer Analytics Platform")
     st.markdown("---")
 
     st.markdown("### 📊 Navigation")
     page = st.radio(
         "Select View",
         [
-            "📈 Executive Dashboard",
             "👥 Segment Explorer",
             "🔍 Customer Deep Dive",
             "🤖 AI Assistant",
@@ -270,12 +319,7 @@ with st.sidebar:
 
 # ============= MAIN CONTENT =============
 
-if page == "📈 Executive Dashboard":
-    from tabs import executive_dashboard
-
-    executive_dashboard.render(execute_query)
-
-elif page == "👥 Segment Explorer":
+if page == "👥 Segment Explorer":
     from tabs import segment_explorer
 
     segment_explorer.render(execute_query)
