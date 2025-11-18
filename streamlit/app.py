@@ -275,25 +275,17 @@ def execute_query(query, params=None):
 
 # ============= HEADER =============
 
-# Display SpendSight logo
-col_logo, col_title = st.columns([1, 3])
-
-with col_logo:
-    st.image("assets/spendsight.png", width=200)
-
-with col_title:
-    st.markdown("""
-    <div style="padding-top: 1.5rem;">
-        <h1 style="margin: 0;">SpendSight</h1>
-        <p style="color: var(--medium-gray); margin: 0;">Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence</p>
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<div style="padding: 1rem 0;">
+    <h1 style="margin: 0; font-size: 2.5rem;">🔍 SpendSight</h1>
+    <p style="color: var(--medium-gray); margin: 0.5rem 0 0 0; font-size: 1.1rem;">Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence</p>
+</div>
+""", unsafe_allow_html=True)
 
 # ============= SIDEBAR NAVIGATION =============
 
 with st.sidebar:
-    # SpendSight logo in sidebar
-    st.image("assets/spendsight.png", width=180)
+    st.markdown("### 🔍 SpendSight")
     st.markdown("##### Customer Analytics Platform")
     st.markdown("---")
 
