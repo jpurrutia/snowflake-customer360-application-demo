@@ -39,9 +39,11 @@ models:
     +schema: silver  # Default to silver schema
 
     # Raw models (Landing → Bronze)
+    # These models use COPY INTO and are run via Snowflake procedures, not dbt
     raw:
       +materialized: incremental  # Incremental for large data loads
       +schema: bronze
+      +enabled: false  # Don't run these - they're executed via Snowflake procedures
       +tags: ["raw", "bronze", "ingestion"]
       +docs:
         node_color: "#CD7F32"  # Bronze color for raw data

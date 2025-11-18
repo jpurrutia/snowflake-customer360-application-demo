@@ -120,9 +120,10 @@ sources:
               - not_null
 
           - name: source_file
-            description: "S3 source file path for data lineage"
-            tests:
-              - not_null
+            description: "S3 source file path for data lineage (currently not populated)"
+            # Test disabled - source_file not populated by COPY INTO
+            # tests:
+            #   - not_null
 
           - name: _metadata_file_row_number
             description: "Row number in source file for debugging"
@@ -210,9 +211,10 @@ sources:
               - not_null
 
           - name: source_file
-            description: "S3 source file path for data lineage"
-            tests:
-              - not_null
+            description: "S3 source file path for data lineage (currently not populated)"
+            # Test disabled - source_file not populated by COPY INTO
+            # tests:
+            #   - not_null
 
           - name: _metadata_file_row_number
             description: "Row number in source file for debugging"

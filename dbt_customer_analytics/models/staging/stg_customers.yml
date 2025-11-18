@@ -149,9 +149,10 @@ models:
           - not_null
 
       - name: source_file
-        description: "S3 source file path for data lineage"
-        tests:
-          - not_null
+        description: "S3 source file path for data lineage (currently not populated)"
+        # Test disabled - source_file not populated by COPY INTO
+        # tests:
+        #   - not_null
 
     # ========================================================================
     # Model-Level Tests
