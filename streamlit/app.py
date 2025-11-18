@@ -293,9 +293,9 @@ with st.sidebar:
     page = st.radio(
         "Select View",
         [
-            "👥 Segment Explorer",
-            "🔍 Customer Deep Dive",
             "🤖 AI Assistant",
+            "🔍 Customer Deep Dive",
+            "👥 Segment Explorer",
             "📢 Campaign Performance"
         ],
         index=0,
@@ -311,20 +311,20 @@ with st.sidebar:
 
 # ============= MAIN CONTENT =============
 
-if page == "👥 Segment Explorer":
-    from tabs import segment_explorer
+if page == "🤖 AI Assistant":
+    from tabs import ai_assistant
 
-    segment_explorer.render(execute_query)
+    ai_assistant.render(execute_query, get_snowflake_connection())
 
 elif page == "🔍 Customer Deep Dive":
     from tabs import customer_360
 
     customer_360.render(execute_query, get_snowflake_connection())
 
-elif page == "🤖 AI Assistant":
-    from tabs import ai_assistant
+elif page == "👥 Segment Explorer":
+    from tabs import segment_explorer
 
-    ai_assistant.render(execute_query, get_snowflake_connection())
+    segment_explorer.render(execute_query)
 
 elif page == "📢 Campaign Performance":
     from tabs import campaign_simulator
