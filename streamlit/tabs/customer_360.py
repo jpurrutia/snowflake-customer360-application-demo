@@ -31,18 +31,21 @@ def render(execute_query, conn):
     )
 
     if search_method == "Customer ID":
-        customer_id = st.number_input(
+        customer_id_input = st.text_input(
             "Enter Customer ID",
-            min_value=1,
-            max_value=100000,
-            value=1,
-            step=1
+            value="CUST00000001",
+            placeholder="CUST00000001",
+            help="Format: CUST followed by 8 digits (e.g., CUST00000001)"
         )
+
+        if not customer_id_input:
+            st.info("Enter a customer ID to search")
+            return
 
         query = f"""
             SELECT *
             FROM GOLD.CUSTOMER_360_PROFILE
-            WHERE customer_id = {customer_id}
+            WHERE customer_id = '{customer_id_input}'
         """
 
     elif search_method == "Name":
