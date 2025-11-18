@@ -1,0 +1,190 @@
+version: 2
+
+models:
+  - name: int_customer_transaction_summary
+    description: |
+      **Intermediate Model: Customer Transaction Summary**
+
+      Single source of truth for all customer transaction aggregations.
+      Consolidates metrics for LTV, ATV, segmentation, and rolling 90-day analysis.
+
+      **Performance:** Reduces 4 full scans of fct_transactions down to 1 scan.
+
+      **Grain:** One row per customer (current state)
+      **Row Count:** ~50,000 customers
+      **Schema:** SILVER
+
+      **Downstream Dependencies:**
+      - customer_segments (uses rolling 90-day and category metrics)
+      - metric_customer_ltv (uses lifetime aggregations)
+      - metric_avg_transaction_value (uses ATV aggregations)
+      - customer_360_profile (can optionally use directly)
+
+    config:
+      tags: ['intermediate', 'aggregations', 'performance']
+
+    columns:
+      # ======================================================================
+      # Keys
+      # ======================================================================
+      - name: customer_id
+        description: "Customer identifier (natural key)"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_key
+        description: "Customer surrogate key (FK to dim_customer)"
+        tests:
+          - not_null
+
+      # ======================================================================
+      # Lifetime Metrics (for metric_customer_ltv)
+      # ======================================================================
+      - name: total_transactions
+        description: "Total count of approved transactions"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: lifetime_value
+        description: "Total lifetime spending (sum of all transaction amounts)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: first_transaction_date
+        description: "Date of first transaction"
+        tests:
+          - not_null
+
+      - name: last_transaction_date
+        description: "Date of most recent transaction"
+        tests:
+          - not_null
+
+      - name: customer_age_days
+        description: "Days between first and last transaction"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: avg_spend_per_day
+        description: "Average daily spending rate (lifetime_value / customer_age_days)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # ======================================================================
+      # ATV Metrics (for metric_avg_transaction_value)
+      # ======================================================================
+      - name: avg_transaction_value
+        description: "Average transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: transaction_value_stddev
+        description: "Standard deviation of transaction amounts"
+        tests:
+          - not_null
+
+      - name: min_transaction_value
+        description: "Minimum transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: max_transaction_value
+        description: "Maximum transaction amount"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: median_transaction_value
+        description: "Median transaction amount (50th percentile)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spending_consistency
+        description: |
+          Spending consistency category based on standard deviation.
+
+          Values: No Transactions, Consistent, Moderate, Variable
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['No Transactions', 'Consistent', 'Moderate', 'Variable']
+
+      # ======================================================================
+      # Rolling 90-Day Metrics (for customer_segments)
+      # ======================================================================
+      - name: spend_last_90_days
+        description: "Total spending in last 90 days"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spend_prior_90_days
+        description: "Total spending in prior 90 days (days 91-180)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: spend_change_pct
+        description: "Percentage change from prior 90 days to last 90 days"
+        tests:
+          - not_null
+
+      - name: avg_monthly_spend
+        description: "Average monthly spend (last 90 days / 3)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # ======================================================================
+      # Category Analysis (for customer_segments)
+      # ======================================================================
+      - name: travel_spend_pct
+        description: "Percentage of lifetime spending on travel categories (Travel, Airlines, Hotels)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100"
+
+      - name: necessities_spend_pct
+        description: "Percentage of lifetime spending on necessities (Grocery, Gas, Utilities)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 100"
+
+      # ======================================================================
+      # Tenure (for customer_segments)
+      # ======================================================================
+      - name: tenure_months
+        description: "Customer tenure in months (from first transaction to current date)"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      # ======================================================================
+      # Metadata
+      # ======================================================================
+      - name: metric_calculated_date
+        description: "Date when metrics were calculated (CURRENT_DATE)"
+        tests:
+          - not_null

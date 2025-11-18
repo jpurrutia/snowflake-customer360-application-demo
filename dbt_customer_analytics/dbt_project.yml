@@ -72,12 +72,6 @@ models:
       +docs:
         node_color: "#FFD700"  # Gold for marts
 
-      # Customer mart (fact and dimension tables)
-      customer:
-        +materialized: table
-        +schema: gold
-        +tags: ["customer", "mart", "gold"]
-
 # ============================================================================
 # Observability & Logging Hooks
 # ============================================================================
