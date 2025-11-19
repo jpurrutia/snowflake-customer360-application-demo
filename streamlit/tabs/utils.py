@@ -107,7 +107,7 @@ def format_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
             if pd.api.types.is_numeric_dtype(df[col]):
                 df[col] = df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
 
-        # Format currency columns - catch all variations
+        # Format currency columns - catch all variations (v2.0 - comprehensive)
         elif any(keyword in col_lower for keyword in [
             'amount', 'amounts',
             'value', 'values', 'valued',

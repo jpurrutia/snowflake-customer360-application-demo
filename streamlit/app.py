@@ -278,7 +278,7 @@ def execute_query(query, params=None):
 st.markdown("""
 <div style="padding: 1rem 0;">
     <h1 style="margin: 0; font-size: 2.5rem;">🔍 SpendSight</h1>
-    <p style="color: var(--medium-gray); margin: 0.5rem 0 0 0; font-size: 1.1rem;">Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence</p>
+    <p style="color: var(--medium-gray); margin: 0.5rem 0 0 0; font-size: 1.1rem;">Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence · v2.0</p>
 </div>
 """, unsafe_allow_html=True)
 
