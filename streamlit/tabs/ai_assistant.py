@@ -604,7 +604,25 @@ def render(execute_query, conn):
                             if pd.api.types.is_numeric_dtype(df[col_name]):
                                 value = df[col_name].iloc[0] if len(df) == 1 else df[col_name].sum()
                                 formatted_col_name = format_column_name(col_name)
-                                if col_name.lower() in ['lifetime_value', 'total_spend', 'amount', 'avg_ltv', 'total_spend_90d']:
+                                # Check if column represents currency using comprehensive keyword matching
+                                col_lower = col_name.lower()
+                                is_currency = any(keyword in col_lower for keyword in [
+                                    'amount', 'amounts',
+                                    'value', 'values', 'valued',
+                                    'ltv', 'clv',
+                                    'spend', 'spending', 'spent', 'spends',
+                                    'revenue', 'revenues',
+                                    'cost', 'costs', 'costing',
+                                    'price', 'prices', 'priced', 'pricing',
+                                    'limit', 'limits',
+                                    'credit', 'credits',
+                                    'paid', 'payment', 'payments',
+                                    'balance', 'balances',
+                                    'total', 'totals',
+                                    'sum', 'sums'
+                                ])
+
+                                if is_currency:
                                     st.metric(formatted_col_name, f"${value:,.0f}")
                                 else:
                                     st.metric(formatted_col_name, f"{value:,.0f}")
