@@ -426,3 +426,175 @@ models:
 #   SELECT * FROM customer_360_profile WHERE customer_id = 'CUST00000001';
 #
 # ============================================================================
+
+  # ==========================================================================
+  # monthly_customer_spending
+  # ==========================================================================
+  - name: monthly_customer_spending
+    description: |
+      Monthly aggregated spending metrics for time-series analysis and trend tracking.
+
+      **Grain**: One row per customer per month
+      **Row Count**: ~900,000 rows (50K customers × 18 months)
+      **Refresh**: Incremental - only processes new/changed months
+      **Materialization**: Table (optimized for Cortex Analyst)
+
+      **Business Purpose**:
+      - Enable fast month-over-month trend analysis
+      - Support Cortex Analyst time-series queries without hitting transactions table
+      - Power seasonal spending dashboards
+      - Track customer spending patterns over time
+
+      **Contains**:
+      - Monthly spending totals by customer
+      - Transaction counts and averages per month
+      - Customer segment and demographics (for grouped analysis)
+      - Date range of transactions within the month
+
+      **Performance**:
+      - Incremental strategy: Only processes last 2 months on each run
+      - Indexed by customer_key + month (compound unique key)
+      - Pre-aggregated to avoid expensive transaction scans
+
+      **Usage Examples**:
+      ```sql
+      -- Month-over-month spending for a segment
+      SELECT
+          customer_segment,
+          month,
+          SUM(total_spend) as segment_spend,
+          COUNT(DISTINCT customer_key) as customer_count
+      FROM monthly_customer_spending
+      WHERE month >= DATEADD('month', -6, CURRENT_DATE())
+      GROUP BY customer_segment, month
+      ORDER BY month DESC;
+
+      -- Customer spending trend
+      SELECT
+          month,
+          total_spend,
+          transaction_count,
+          avg_transaction_value
+      FROM monthly_customer_spending
+      WHERE customer_id = 'CUST00000001'
+      ORDER BY month DESC;
+
+      -- Seasonal patterns by state
+      SELECT
+          state,
+          DATE_PART('month', month) as calendar_month,
+          AVG(total_spend) as avg_monthly_spend
+      FROM monthly_customer_spending
+      GROUP BY state, DATE_PART('month', month)
+      ORDER BY state, calendar_month;
+      ```
+
+      **Related Models**:
+      - Upstream: fct_transactions, dim_customer, customer_360_profile
+      - Consumed by: Cortex Analyst semantic model (monthly_spending table)
+
+    config:
+      tags: ['gold', 'mart', 'time_series', 'cortex_analyst']
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - customer_key
+            - month
+
+    columns:
+      - name: customer_key
+        description: Surrogate key linking to customer dimension
+        tests:
+          - not_null
+          - relationships:
+              to: ref('customer_360_profile')
+              field: customer_key
+
+      - name: customer_id
+        description: Business key for customer (e.g., CUST00000001)
+        tests:
+          - not_null
+
+      - name: full_name
+        description: Customer's full name
+
+      - name: customer_segment
+        description: Behavioral segment (High-Value Travelers, Stable Mid-Spenders, etc.)
+        tests:
+          - accepted_values:
+              values: ['High-Value Travelers', 'Stable Mid-Spenders', 'Budget-Conscious', 'Declining', 'New & Growing']
+
+      - name: card_type
+        description: Credit card tier (Standard or Premium)
+        tests:
+          - accepted_values:
+              values: ['Standard', 'Premium']
+
+      - name: state
+        description: Customer's state of residence
+        tests:
+          - not_null
+
+      - name: city
+        description: Customer's city of residence
+
+      - name: month
+        description: Month of spending (first day of month timestamp)
+        tests:
+          - not_null
+
+      - name: total_spend
+        description: Total spending for this customer in this month
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: transaction_count
+        description: Number of approved transactions in this month
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: avg_transaction_value
+        description: Average transaction amount for this month
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+      - name: first_transaction_date
+        description: Date of first transaction in this month
+        tests:
+          - not_null
+
+      - name: last_transaction_date
+        description: Date of last transaction in this month
+        tests:
+          - not_null
+
+      - name: dbt_updated_at
+        description: Timestamp when this row was last updated by dbt
+
+# ============================================================================
+# USAGE COMMANDS
+# ============================================================================
+#
+# Build monthly spending table (full refresh):
+#   dbt run --models monthly_customer_spending --full-refresh
+#
+# Build monthly spending table (incremental):
+#   dbt run --models monthly_customer_spending
+#
+# Test monthly spending table:
+#   dbt test --models monthly_customer_spending
+#
+# Query recent months:
+#   SELECT * FROM monthly_customer_spending
+#   WHERE month >= DATEADD('month', -3, CURRENT_DATE())
+#   ORDER BY month DESC, total_spend DESC
+#   LIMIT 100;
+#
+# ============================================================================

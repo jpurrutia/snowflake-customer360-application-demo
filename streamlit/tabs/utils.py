@@ -88,9 +88,10 @@ def format_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
                 df[col] = df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
 
         # Format currency columns
-        elif any(keyword in col_lower for keyword in ['amount', 'value', 'ltv', 'spend', 'revenue', 'cost', 'price', 'limit', 'credit']):
+        elif any(keyword in col_lower for keyword in ['amount', 'value', 'ltv', 'spend', 'revenue', 'cost', 'price', 'limit', 'credit', 'total_spend']):
             if pd.api.types.is_numeric_dtype(df[col]):
-                df[col] = df[col].apply(lambda x: f"${x:,.2f}" if pd.notna(x) else "N/A")
+                # For large numbers (> 1 million), format with fewer decimals
+                df[col] = df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) and abs(x) >= 1000 else (f"${x:,.2f}" if pd.notna(x) else "N/A"))
 
         # Format count/integer columns
         elif any(keyword in col_lower for keyword in ['count', 'total_transactions', 'num_']):

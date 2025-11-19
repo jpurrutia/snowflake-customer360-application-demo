@@ -67,19 +67,35 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
     if len(df) == 1 or len(df.columns) == 1:
         return []
 
+    # Detect geographic columns
+    geo_keywords = ['state', 'country', 'city', 'region', 'zip', 'postal', 'county', 'province']
+    geo_cols = [col for col in categorical_cols
+                if any(keyword in col.lower() for keyword in geo_keywords)]
+
+    # Geographic data - prioritize map visualizations
+    if geo_cols and numeric_cols:
+        # Check if it's US state data for choropleth
+        if any('state' in col.lower() for col in geo_cols):
+            suggestions.append('choropleth_usa')
+        suggestions.append('bar')  # Bar chart is also good for geo data
+        suggestions.append('pie')
+
     # Time series data
-    if date_cols and numeric_cols:
+    elif date_cols and numeric_cols:
         suggestions.extend(['line', 'area'])
 
     # Categorical + Numeric (most common for business analytics)
-    if categorical_cols and numeric_cols and len(df) > 1:
+    elif categorical_cols and numeric_cols and len(df) > 1:
         suggestions.extend(['bar', 'pie'])
         if len(df) <= 20:  # Only for smaller datasets
             suggestions.append('scatter')
 
     # Multiple numeric columns
     if len(numeric_cols) >= 2:
-        suggestions.extend(['scatter', 'line'])
+        if 'scatter' not in suggestions:
+            suggestions.append('scatter')
+        if 'line' not in suggestions:
+            suggestions.append('line')
 
     # Single numeric column - distribution
     if len(numeric_cols) == 1 and len(df) > 10:
@@ -87,7 +103,8 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
 
     # Hierarchical data (2+ categorical columns)
     if len(categorical_cols) >= 2 and numeric_cols:
-        suggestions.append('sunburst')
+        if 'sunburst' not in suggestions:
+            suggestions.append('sunburst')
 
     # Remove duplicates while preserving order
     seen = set()
@@ -112,7 +129,61 @@ def render_chart(df: pd.DataFrame, chart_type: str):
     date_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
 
     try:
-        if chart_type == 'bar':
+        if chart_type == 'choropleth_usa':
+            # US State choropleth map
+            geo_keywords = ['state']
+            state_col = None
+            for col in df.columns:
+                if any(keyword in col.lower() for keyword in geo_keywords):
+                    state_col = col
+                    break
+
+            if state_col and numeric_cols:
+                value_col = numeric_cols[0]
+
+                # Standardize state names to abbreviations for plotting
+                # This handles both full names and abbreviations
+                state_abbrev_map = {
+                    'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+                    'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+                    'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+                    'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+                    'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
+                    'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH',
+                    'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC',
+                    'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA',
+                    'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', 'tennessee': 'TN',
+                    'texas': 'TX', 'utah': 'UT', 'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA',
+                    'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY'
+                }
+
+                # Create a copy and normalize state names
+                plot_df = df.copy()
+                plot_df[state_col] = plot_df[state_col].apply(
+                    lambda x: state_abbrev_map.get(str(x).lower(), str(x).upper())
+                )
+
+                fig = px.choropleth(
+                    plot_df,
+                    locations=state_col,
+                    locationmode='USA-states',
+                    color=value_col,
+                    scope='usa',
+                    title=f'{format_column_name(value_col)} by State',
+                    color_continuous_scale='RdYlGn_r',  # Red (bad) to Green (good)
+                    labels={value_col: format_column_name(value_col)}
+                )
+                fig.update_layout(
+                    geo=dict(bgcolor='rgba(0,0,0,0)'),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='white')
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Choropleth map requires a state column and at least one numeric column")
+
+        elif chart_type == 'bar':
             # Use first categorical/date column as x, first numeric as y
             x_col = categorical_cols[0] if categorical_cols else (date_cols[0] if date_cols else df.columns[0])
             y_col = numeric_cols[0] if numeric_cols else df.columns[1]
@@ -555,11 +626,24 @@ def render(execute_query, conn):
 
                     with view_col2:
                         if view_mode == "📈 Chart":
-                            # Chart type selector
+                            # Chart type selector with friendly labels
+                            def format_chart_label(chart_type):
+                                labels = {
+                                    'choropleth_usa': '🗺️ US Map (Choropleth)',
+                                    'bar': '📊 Bar Chart',
+                                    'line': '📈 Line Chart',
+                                    'area': '📉 Area Chart',
+                                    'pie': '🥧 Pie Chart',
+                                    'scatter': '⚫ Scatter Plot',
+                                    'histogram': '📊 Histogram',
+                                    'sunburst': '☀️ Sunburst'
+                                }
+                                return labels.get(chart_type, chart_type.title())
+
                             chart_type = st.selectbox(
                                 "Chart Type:",
                                 chart_types,
-                                format_func=lambda x: x.title(),
+                                format_func=format_chart_label,
                                 key="chart_type_selector"
                             )
 
