@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from .utils import format_dataframe_columns, format_column_name
 import plotly.express as px
+import plotly.graph_objects as go
 
 # Import Snowflake-specific modules (only available in Streamlit in Snowflake)
 try:
@@ -167,27 +168,31 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                     lambda x: state_abbrev_map.get(str(x).lower().strip(), str(x).upper().strip())
                 )
 
-                fig = px.choropleth(
-                    plot_df,
-                    locations=state_col,
+                # Use graph_objects instead of express for better compatibility in SiS
+                fig = go.Figure(data=go.Choropleth(
+                    locations=plot_df[state_col],
+                    z=plot_df[value_col],
                     locationmode='USA-states',
-                    color=value_col,
-                    scope='usa',
-                    title=f'{format_column_name(value_col)} by State',
-                    color_continuous_scale='Viridis',
-                    labels={value_col: format_column_name(value_col)},
-                    hover_data={state_col: True, value_col: ':,.0f'}  # Format hover values
-                )
+                    colorscale='Viridis',
+                    colorbar_title=format_column_name(value_col),
+                    text=plot_df[state_col],
+                    hovertemplate='<b>%{text}</b><br>' + format_column_name(value_col) + ': %{z:,.0f}<extra></extra>'
+                ))
+
                 fig.update_layout(
+                    title_text=f'{format_column_name(value_col)} by State',
                     geo=dict(
-                        bgcolor='rgba(0,0,0,0)',
+                        scope='usa',
+                        projection=go.layout.geo.Projection(type='albers usa'),
+                        showlakes=True,
                         lakecolor='#0a1628',
-                        landcolor='#1e3a5f'
+                        bgcolor='rgba(0,0,0,0)'
                     ),
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(color='white'),
-                    height=600
+                    height=600,
+                    margin=dict(l=0, r=0, t=50, b=0)
                 )
                 st.plotly_chart(fig, use_container_width=True)
             else:
