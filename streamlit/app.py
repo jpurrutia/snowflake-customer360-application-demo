@@ -218,22 +218,8 @@ def get_snowflake_connection():
         # Return the raw connection object for compatibility
         return conn.raw_connection
     except Exception as e:
-        # Fallback to environment variable-based connection for local development
-        try:
-            conn = snowflake.connector.connect(
-                account=os.getenv("SNOWFLAKE_ACCOUNT"),
-                user=os.getenv("SNOWFLAKE_USER"),
-                password=os.getenv("SNOWFLAKE_PASSWORD"),
-                warehouse="COMPUTE_WH",
-                database="CUSTOMER_ANALYTICS",
-                schema="GOLD",
-                role="DATA_ANALYST",
-                client_session_keep_alive=True,
-            )
-            return conn
-        except Exception as e2:
-            st.error(f"Failed to connect to Snowflake: {e2}")
-            st.stop()
+        st.error(f"Failed to connect to Snowflake: {e}")
+        st.stop()
 
 
 def execute_query(query, params=None):

@@ -2,10 +2,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import json
-import _snowflake
-from snowflake.snowpark.context import get_active_session
 from .utils import format_dataframe_columns, format_column_name
 import plotly.express as px
+
+# Import Snowflake-specific modules (only available in Streamlit in Snowflake)
+try:
+    import _snowflake
+except ImportError:
+    _snowflake = None  # Will cause Cortex Analyst to fall back to mock
 
 
 # Suggested questions organized by use case
@@ -313,6 +317,16 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
         df = pd.DataFrame(results, columns=columns)
         cursor.close()
 
+        # Convert Decimal/numeric types to proper float/int for formatting
+        # Snowflake returns Decimal objects which pandas infers as 'object' dtype
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                try:
+                    # Try to convert to numeric (handles Decimal, int, float strings)
+                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                except:
+                    pass  # Keep as-is if conversion fails
+
         return {
             'sql': sql,
             'results': df,
@@ -368,6 +382,11 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             "role": "user",
             "content": [{"type": "text", "text": question}]
         })
+
+        # Check if _snowflake module is available (only in Streamlit in Snowflake)
+        if _snowflake is None:
+            st.warning("⚠️ Cortex Analyst requires Streamlit in Snowflake environment. Using mock implementation.")
+            return call_cortex_analyst_mock(conn, question)
 
         # Request payload
         request_body = {
@@ -443,6 +462,16 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         columns = [desc[0] for desc in cursor.description]
         df = pd.DataFrame(results, columns=columns)
         cursor.close()
+
+        # Convert Decimal/numeric types to proper float/int for formatting
+        # Snowflake returns Decimal objects which pandas infers as 'object' dtype
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                try:
+                    # Try to convert to numeric (handles Decimal, int, float strings)
+                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                except:
+                    pass  # Keep as-is if conversion fails
 
         return {
             'sql': generated_sql,
