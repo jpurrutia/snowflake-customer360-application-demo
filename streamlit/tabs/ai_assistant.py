@@ -5,8 +5,11 @@ import json
 from .utils import format_dataframe_columns, format_column_name
 import plotly.express as px
 import plotly.graph_objects as go
-import pydeck as pdk
-import requests
+
+# PyDeck imports - only needed if choropleth is enabled
+# Requires adding "pydeck" package via Snowflake Packages UI
+# import pydeck as pdk
+# import requests
 
 # Import Snowflake-specific modules (only available in Streamlit in Snowflake)
 try:
@@ -81,11 +84,13 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
 
     # Geographic data - prioritize map visualizations
     if geo_cols and numeric_cols:
-        # Check if it's US state data for choropleth
-        if any('state' in col.lower() for col in geo_cols):
-            suggestions.append('choropleth_usa')
-        suggestions.append('bar')  # Bar chart is also good for geo data
+        # Bar chart works great for geographic data
+        suggestions.append('bar')
         suggestions.append('pie')
+        # Choropleth disabled - requires pydeck package to be added via Snowflake Packages UI
+        # To enable: Add "pydeck" package in Streamlit app settings, then uncomment below
+        # if any('state' in col.lower() for col in geo_cols):
+        #     suggestions.append('choropleth_usa')
 
     # Time series data
     elif date_cols and numeric_cols:
