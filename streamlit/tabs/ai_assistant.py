@@ -164,7 +164,7 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                 # Create a copy and normalize state names
                 plot_df = df.copy()
                 plot_df[state_col] = plot_df[state_col].apply(
-                    lambda x: state_abbrev_map.get(str(x).lower(), str(x).upper())
+                    lambda x: state_abbrev_map.get(str(x).lower().strip(), str(x).upper().strip())
                 )
 
                 fig = px.choropleth(
@@ -174,18 +174,24 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                     color=value_col,
                     scope='usa',
                     title=f'{format_column_name(value_col)} by State',
-                    color_continuous_scale='RdYlGn_r',  # Red (bad) to Green (good)
-                    labels={value_col: format_column_name(value_col)}
+                    color_continuous_scale='Viridis',
+                    labels={value_col: format_column_name(value_col)},
+                    hover_data={state_col: True, value_col: ':,.0f'}  # Format hover values
                 )
                 fig.update_layout(
-                    geo=dict(bgcolor='rgba(0,0,0,0)'),
+                    geo=dict(
+                        bgcolor='rgba(0,0,0,0)',
+                        lakecolor='#0a1628',
+                        landcolor='#1e3a5f'
+                    ),
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='white')
+                    font=dict(color='white'),
+                    height=600
                 )
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("Choropleth map requires a state column and at least one numeric column")
+                st.warning(f"Choropleth map requires a state column and at least one numeric column. Found state_col={state_col}, numeric_cols={numeric_cols}")
 
         elif chart_type == 'bar':
             # Use first categorical/date column as x, first numeric as y
