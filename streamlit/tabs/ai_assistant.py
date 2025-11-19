@@ -6,10 +6,15 @@ from .utils import format_dataframe_columns, format_column_name
 import plotly.express as px
 import plotly.graph_objects as go
 
-# PyDeck imports - only needed if choropleth is enabled
-# Requires adding "pydeck" package via Snowflake Packages UI
-# import pydeck as pdk
-# import requests
+# PyDeck imports - DISABLED (trial account limitation)
+# 📋 To enable choropleth maps, see: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
+# Uncomment these imports after setting up External Access Integration:
+try:
+    import pydeck as pdk
+    import requests
+    PYDECK_AVAILABLE = True
+except ImportError:
+    PYDECK_AVAILABLE = False
 
 # Import Snowflake-specific modules (only available in Streamlit in Snowflake)
 try:
@@ -87,10 +92,10 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
         # Bar chart works great for geographic data
         suggestions.append('bar')
         suggestions.append('pie')
-        # Choropleth disabled - requires pydeck package to be added via Snowflake Packages UI
-        # To enable: Add "pydeck" package in Streamlit app settings, then uncomment below
-        # if any('state' in col.lower() for col in geo_cols):
-        #     suggestions.append('choropleth_usa')
+        # 🗺️ Choropleth maps (requires paid Snowflake account + External Access)
+        # 📋 To enable, follow guide: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
+        if PYDECK_AVAILABLE and any('state' in col.lower() for col in geo_cols):
+            suggestions.append('choropleth_usa')
 
     # Time series data
     elif date_cols and numeric_cols:
@@ -126,11 +131,18 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
 @st.cache_data(ttl=3600)
 def fetch_us_states_geojson():
     """
-    Fetch and cache US states GeoJSON data.
+    Fetch and cache US states GeoJSON data for choropleth maps.
+
+    ⚠️ REQUIRES: External Access Integration configured (paid account only)
+    📋 Setup guide: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
 
     Returns:
         dict: GeoJSON FeatureCollection with US state geometries
     """
+    if not PYDECK_AVAILABLE:
+        st.error("PyDeck not available. Choropleth maps require External Access Integration.")
+        return None
+
     try:
         url = "https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_040_00_5m.json"
         response = requests.get(url, timeout=10)
@@ -138,6 +150,7 @@ def fetch_us_states_geojson():
         return response.json()
     except Exception as e:
         st.error(f"Failed to load US states map data: {e}")
+        st.info("Check that External Access Integration is configured. See: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md")
         return None
 
 
@@ -160,7 +173,9 @@ def render_chart(df: pd.DataFrame, chart_type: str):
 
     try:
         if chart_type == 'choropleth_usa':
-            # US State choropleth map using PyDeck
+            # 🗺️ US State choropleth map using PyDeck
+            # This code is ready but requires External Access Integration
+            # 📋 Setup guide: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
             geo_keywords = ['state']
             state_col = None
             for col in df.columns:
