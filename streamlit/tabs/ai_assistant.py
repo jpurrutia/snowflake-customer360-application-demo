@@ -594,15 +594,15 @@ def render(execute_query, conn):
             if df is not None and not df.empty:
                 st.success(f"✅ Found {len(df)} results")
 
-                # Summary metrics (if applicable)
-                if len(df) < 20 and len(df.columns) <= 5:
-                    # Display as cards for small result sets
+                # Summary metrics (if applicable) - show for single row results
+                if len(df) == 1 and len(df.columns) <= 5:
+                    # Display as cards for single result
                     cols = st.columns(min(len(df.columns), 4))
 
                     for idx, col_name in enumerate(df.columns[:4]):
                         with cols[idx]:
                             if pd.api.types.is_numeric_dtype(df[col_name]):
-                                value = df[col_name].iloc[0] if len(df) == 1 else df[col_name].sum()
+                                value = df[col_name].iloc[0]
                                 formatted_col_name = format_column_name(col_name)
                                 # Check if column represents currency using comprehensive keyword matching
                                 col_lower = col_name.lower()
