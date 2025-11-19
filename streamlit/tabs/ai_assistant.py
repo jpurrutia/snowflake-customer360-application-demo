@@ -42,6 +42,127 @@ SUGGESTED_QUESTIONS = {
 }
 
 
+def suggest_chart_type(df: pd.DataFrame) -> list:
+    """
+    Suggest appropriate chart types based on DataFrame structure.
+
+    Args:
+        df: DataFrame to analyze
+
+    Returns:
+        List of suggested chart types
+    """
+    if df is None or df.empty or len(df) == 0:
+        return []
+
+    # Analyze column types
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    date_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+
+    suggestions = []
+
+    # Single row or single column - table view only
+    if len(df) == 1 or len(df.columns) == 1:
+        return []
+
+    # Time series data
+    if date_cols and numeric_cols:
+        suggestions.extend(['line', 'area'])
+
+    # Categorical + Numeric (most common for business analytics)
+    if categorical_cols and numeric_cols and len(df) > 1:
+        suggestions.extend(['bar', 'pie'])
+        if len(df) <= 20:  # Only for smaller datasets
+            suggestions.append('scatter')
+
+    # Multiple numeric columns
+    if len(numeric_cols) >= 2:
+        suggestions.extend(['scatter', 'line'])
+
+    # Single numeric column - distribution
+    if len(numeric_cols) == 1 and len(df) > 10:
+        suggestions.append('histogram')
+
+    # Hierarchical data (2+ categorical columns)
+    if len(categorical_cols) >= 2 and numeric_cols:
+        suggestions.append('sunburst')
+
+    # Remove duplicates while preserving order
+    seen = set()
+    return [x for x in suggestions if not (x in seen or seen.add(x))]
+
+
+def render_chart(df: pd.DataFrame, chart_type: str):
+    """
+    Render a chart using Plotly based on the chart type and DataFrame structure.
+
+    Args:
+        df: DataFrame to visualize
+        chart_type: Type of chart to render (bar, line, pie, scatter, etc.)
+    """
+    if df is None or df.empty:
+        st.warning("No data available to visualize")
+        return
+
+    # Analyze columns
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    date_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+
+    try:
+        if chart_type == 'bar':
+            # Use first categorical/date column as x, first numeric as y
+            x_col = categorical_cols[0] if categorical_cols else (date_cols[0] if date_cols else df.columns[0])
+            y_col = numeric_cols[0] if numeric_cols else df.columns[1]
+            fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif chart_type == 'line':
+            x_col = date_cols[0] if date_cols else (categorical_cols[0] if categorical_cols else df.columns[0])
+            y_col = numeric_cols[0] if numeric_cols else df.columns[1]
+            fig = px.line(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif chart_type == 'area':
+            x_col = date_cols[0] if date_cols else (categorical_cols[0] if categorical_cols else df.columns[0])
+            y_col = numeric_cols[0] if numeric_cols else df.columns[1]
+            fig = px.area(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif chart_type == 'pie':
+            names_col = categorical_cols[0] if categorical_cols else df.columns[0]
+            values_col = numeric_cols[0] if numeric_cols else df.columns[1]
+            fig = px.pie(df, names=names_col, values=values_col, title=f"{values_col} by {names_col}")
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif chart_type == 'scatter':
+            x_col = numeric_cols[0] if len(numeric_cols) >= 2 else df.columns[0]
+            y_col = numeric_cols[1] if len(numeric_cols) >= 2 else numeric_cols[0]
+            color_col = categorical_cols[0] if categorical_cols else None
+            fig = px.scatter(df, x=x_col, y=y_col, color=color_col, title=f"{y_col} vs {x_col}")
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif chart_type == 'histogram':
+            col = numeric_cols[0] if numeric_cols else df.columns[0]
+            fig = px.histogram(df, x=col, title=f"Distribution of {col}")
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif chart_type == 'sunburst':
+            # Hierarchical visualization
+            if len(categorical_cols) >= 2 and numeric_cols:
+                path_cols = categorical_cols[:2]
+                values_col = numeric_cols[0]
+                fig = px.sunburst(df, path=path_cols, values=values_col, title=f"{values_col} by {' > '.join(path_cols)}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Sunburst chart requires at least 2 categorical columns and 1 numeric column")
+
+    except Exception as e:
+        st.error(f"Error rendering {chart_type} chart: {e}")
+        st.info("Try a different chart type or view the data as a table")
+
+
 def call_cortex_analyst_mock(conn, question: str) -> dict:
     """
     Mock Cortex Analyst for testing when Cortex Analyst not available.
@@ -107,6 +228,7 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
         return {
             'sql': None,
             'results': None,
+            'suggestions': [],
             'error': 'Question not recognized by mock. Try a suggested question or wait for Cortex Analyst integration.'
         }
 
@@ -122,12 +244,14 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
         return {
             'sql': sql,
             'results': df,
+            'suggestions': [],
             'error': None
         }
     except Exception as e:
         return {
             'sql': sql,
             'results': None,
+            'suggestions': [],
             'error': str(e)
         }
 
@@ -216,23 +340,27 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         # Extract message content
         message = parsed_content.get('message', {})
 
-        # Extract SQL and interpretation
+        # Extract SQL, interpretation, and suggestions
         generated_sql = None
         interpretation = None
+        suggestions = []
 
-        # Try to find SQL in content blocks
+        # Try to find SQL, text, and suggestions in content blocks
         content = message.get('content', [])
         for item in content:
             if item.get('type') == 'sql':
                 generated_sql = item.get('statement')
             elif item.get('type') == 'text':
                 interpretation = item.get('text')
+            elif item.get('type') == 'suggestions':
+                suggestions = item.get('suggestions', [])
 
         if not generated_sql:
             return {
                 'sql': None,
                 'results': None,
                 'interpretation': interpretation,
+                'suggestions': suggestions,
                 'error': 'Cortex Analyst did not generate SQL for this question'
             }
 
@@ -248,6 +376,7 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
             'sql': generated_sql,
             'results': df,
             'interpretation': interpretation,
+            'suggestions': suggestions,
             'error': None
         }
 
@@ -372,6 +501,17 @@ def render(execute_query, conn):
             if response.get('interpretation'):
                 st.info(f"**AI Interpretation:** {response['interpretation']}")
 
+            # Display suggestions from Cortex Analyst
+            suggestions = response.get('suggestions', [])
+            if suggestions:
+                st.markdown("**💡 Follow-up suggestions:**")
+                suggestion_cols = st.columns(min(len(suggestions), 3))
+                for idx, suggestion in enumerate(suggestions[:6]):  # Limit to 6 suggestions
+                    with suggestion_cols[idx % 3]:
+                        if st.button(suggestion, key=f"suggestion_{idx}"):
+                            st.session_state['current_question'] = suggestion
+                            st.rerun()
+
             # Display generated SQL
             with st.expander("🔍 View Generated SQL", expanded=False):
                 st.code(response['sql'], language='sql')
@@ -397,9 +537,42 @@ def render(execute_query, conn):
                                 else:
                                     st.metric(formatted_col_name, f"{value:,.0f}")
 
-                # Results table with human-readable column names
-                display_df = format_dataframe_columns(df.copy())
-                st.dataframe(display_df, use_container_width=True, height=400)
+                # View toggle: Table or Chart
+                chart_types = suggest_chart_type(df)
+
+                if chart_types:
+                    # Show view selector if charts are available
+                    view_col1, view_col2 = st.columns([1, 4])
+
+                    with view_col1:
+                        view_mode = st.radio(
+                            "View Mode:",
+                            ["📊 Table", "📈 Chart"],
+                            horizontal=True,
+                            key="view_mode"
+                        )
+
+                    with view_col2:
+                        if view_mode == "📈 Chart":
+                            # Chart type selector
+                            chart_type = st.selectbox(
+                                "Chart Type:",
+                                chart_types,
+                                format_func=lambda x: x.title(),
+                                key="chart_type_selector"
+                            )
+
+                    if view_mode == "📈 Chart":
+                        # Render chart
+                        render_chart(df, chart_type)
+                    else:
+                        # Show table
+                        display_df = format_dataframe_columns(df.copy())
+                        st.dataframe(display_df, use_container_width=True, height=400)
+                else:
+                    # No charts available, just show table
+                    display_df = format_dataframe_columns(df.copy())
+                    st.dataframe(display_df, use_container_width=True, height=400)
 
                 # Export with human-readable column names
                 csv_df = format_dataframe_columns(df.copy())
