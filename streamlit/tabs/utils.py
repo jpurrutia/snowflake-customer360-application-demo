@@ -82,15 +82,35 @@ def format_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     for col in df.columns:
         col_lower = col.lower()
 
+        # Format date/month columns (do this FIRST before other formatting)
+        if 'month' in col_lower or 'date' in col_lower:
+            if pd.api.types.is_datetime64_any_dtype(df[col]):
+                # For month columns, show as "MMM YYYY" (e.g., "Nov 2025")
+                if 'month' in col_lower:
+                    df[col] = df[col].dt.strftime('%b %Y')
+                else:
+                    # For regular dates, show as "YYYY-MM-DD"
+                    df[col] = df[col].dt.strftime('%Y-%m-%d')
+            # Handle timestamps stored as strings
+            elif pd.api.types.is_object_dtype(df[col]):
+                try:
+                    df[col] = pd.to_datetime(df[col])
+                    if 'month' in col_lower:
+                        df[col] = df[col].dt.strftime('%b %Y')
+                    else:
+                        df[col] = df[col].dt.strftime('%Y-%m-%d')
+                except:
+                    pass  # Leave as-is if conversion fails
+
         # Format percentage columns
-        if any(keyword in col_lower for keyword in ['_pct', '_percent', 'risk_score', 'rate', 'ratio']):
+        elif any(keyword in col_lower for keyword in ['_pct', '_percent', 'risk_score', 'rate', 'ratio']):
             if pd.api.types.is_numeric_dtype(df[col]):
                 df[col] = df[col].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
 
-        # Format currency columns
-        elif any(keyword in col_lower for keyword in ['amount', 'value', 'ltv', 'spend', 'revenue', 'cost', 'price', 'limit', 'credit', 'total_spend']):
+        # Format currency columns - MUST be explicit about column matching
+        elif any(keyword in col_lower for keyword in ['amount', 'value', 'ltv', 'spend', 'revenue', 'cost', 'price', 'limit', 'credit']):
             if pd.api.types.is_numeric_dtype(df[col]):
-                # For large numbers (> 1 million), format with fewer decimals
+                # For large numbers (>= $1000), format without decimals
                 df[col] = df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) and abs(x) >= 1000 else (f"${x:,.2f}" if pd.notna(x) else "N/A"))
 
         # Format count/integer columns
