@@ -124,8 +124,11 @@ def format_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
             'sum', 'sums'
         ]):
             if pd.api.types.is_numeric_dtype(df[col]):
+                # Debug: Print when we're formatting currency
+                print(f"[CURRENCY FORMAT] Column: {col}, Type: {df[col].dtype}, Sample: {df[col].iloc[0] if len(df) > 0 else 'empty'}")
                 # For large numbers (>= $1000), format without decimals
                 df[col] = df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) and abs(x) >= 1000 else (f"${x:,.2f}" if pd.notna(x) else "N/A"))
+                print(f"[CURRENCY FORMAT] After format: {df[col].iloc[0] if len(df) > 0 else 'empty'}")
 
         # Format count/integer columns
         elif any(keyword in col_lower for keyword in ['count', 'total_transactions', 'num_']):
