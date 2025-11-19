@@ -5,6 +5,8 @@ import json
 from .utils import format_dataframe_columns, format_column_name
 import plotly.express as px
 import plotly.graph_objects as go
+import pydeck as pdk
+import requests
 
 # Import Snowflake-specific modules (only available in Streamlit in Snowflake)
 try:
@@ -116,6 +118,24 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
     return [x for x in suggestions if not (x in seen or seen.add(x))]
 
 
+@st.cache_data(ttl=3600)
+def fetch_us_states_geojson():
+    """
+    Fetch and cache US states GeoJSON data.
+
+    Returns:
+        dict: GeoJSON FeatureCollection with US state geometries
+    """
+    try:
+        url = "https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_040_00_5m.json"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Failed to load US states map data: {e}")
+        return None
+
+
 def render_chart(df: pd.DataFrame, chart_type: str):
     """
     Render a chart using Plotly based on the chart type and DataFrame structure.
@@ -135,7 +155,7 @@ def render_chart(df: pd.DataFrame, chart_type: str):
 
     try:
         if chart_type == 'choropleth_usa':
-            # US State choropleth map
+            # US State choropleth map using PyDeck
             geo_keywords = ['state']
             state_col = None
             for col in df.columns:
@@ -146,8 +166,13 @@ def render_chart(df: pd.DataFrame, chart_type: str):
             if state_col and numeric_cols:
                 value_col = numeric_cols[0]
 
-                # Standardize state names to abbreviations for plotting
-                # This handles both full names and abbreviations
+                # Fetch US states GeoJSON
+                geojson = fetch_us_states_geojson()
+                if geojson is None:
+                    st.error("Unable to load map data. Try switching to Bar Chart view.")
+                    return
+
+                # Standardize state names to abbreviations
                 state_abbrev_map = {
                     'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
                     'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
@@ -162,39 +187,85 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                     'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY'
                 }
 
-                # Create a copy and normalize state names
+                # Normalize state names in DataFrame
                 plot_df = df.copy()
                 plot_df[state_col] = plot_df[state_col].apply(
                     lambda x: state_abbrev_map.get(str(x).lower().strip(), str(x).upper().strip())
                 )
 
-                # Use graph_objects instead of express for better compatibility in SiS
-                fig = go.Figure(data=go.Choropleth(
-                    locations=plot_df[state_col],
-                    z=plot_df[value_col],
-                    locationmode='USA-states',
-                    colorscale='Viridis',
-                    colorbar_title=format_column_name(value_col),
-                    text=plot_df[state_col],
-                    hovertemplate='<b>%{text}</b><br>' + format_column_name(value_col) + ': %{z:,.0f}<extra></extra>'
-                ))
+                # Normalize values for color scaling (0-1 range)
+                min_val = plot_df[value_col].min()
+                max_val = plot_df[value_col].max()
+                value_range = max_val - min_val if max_val != min_val else 1
+                plot_df['normalized_value'] = (plot_df[value_col] - min_val) / value_range
 
-                fig.update_layout(
-                    title_text=f'{format_column_name(value_col)} by State',
-                    geo=dict(
-                        scope='usa',
-                        projection=go.layout.geo.Projection(type='albers usa'),
-                        showlakes=True,
-                        lakecolor='#0a1628',
-                        bgcolor='rgba(0,0,0,0)'
-                    ),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='white'),
-                    height=600,
-                    margin=dict(l=0, r=0, t=50, b=0)
+                # Merge data into GeoJSON properties
+                for feature in geojson['features']:
+                    state_code = feature['properties'].get('STUSPS', '')  # State abbreviation
+                    matching = plot_df[plot_df[state_col] == state_code]
+
+                    if not matching.empty:
+                        feature['properties']['value'] = float(matching.iloc[0][value_col])
+                        feature['properties']['value_norm'] = float(matching.iloc[0]['normalized_value'])
+                    else:
+                        feature['properties']['value'] = 0
+                        feature['properties']['value_norm'] = 0
+
+                # Create color expression (green to yellow to red gradient based on value)
+                # Lower values = green, higher values = red
+                fill_color = "[255 * properties.value_norm, 200 * (1 - properties.value_norm), 50]"
+
+                # Create PyDeck layer
+                layer = pdk.Layer(
+                    "GeoJsonLayer",
+                    geojson,
+                    opacity=0.7,
+                    stroked=True,
+                    filled=True,
+                    extruded=False,
+                    wireframe=False,
+                    get_fill_color=fill_color,
+                    get_line_color=[255, 255, 255, 100],
+                    get_line_width=1,
+                    pickable=True,
+                    auto_highlight=True
                 )
-                st.plotly_chart(fig, use_container_width=True)
+
+                # Set view state (centered on US)
+                view_state = pdk.ViewState(
+                    latitude=37.8,
+                    longitude=-96,
+                    zoom=3.5,
+                    pitch=0,
+                    bearing=0
+                )
+
+                # Create tooltip
+                formatted_col_name = format_column_name(value_col)
+                tooltip = {
+                    "html": f"<b>{{NAME}}</b><br/>{formatted_col_name}: ${{value:,.0f}}",
+                    "style": {
+                        "backgroundColor": "#12263f",
+                        "color": "white",
+                        "fontSize": "14px",
+                        "padding": "8px",
+                        "borderRadius": "4px"
+                    }
+                }
+
+                # Create deck
+                deck = pdk.Deck(
+                    layers=[layer],
+                    initial_view_state=view_state,
+                    tooltip=tooltip,
+                    map_style="mapbox://styles/mapbox/dark-v10"
+                )
+
+                # Render map
+                st.pydeck_chart(deck)
+
+                # Show legend
+                st.caption(f"🟢 Lower {formatted_col_name} → 🔴 Higher {formatted_col_name}")
             else:
                 st.warning(f"Choropleth map requires a state column and at least one numeric column. Found state_col={state_col}, numeric_cols={numeric_cols}")
 
