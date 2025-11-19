@@ -27,8 +27,8 @@ USE WAREHOUSE COMPUTE_WH;
 REMOVE @SEMANTIC_STAGE/customer_analytics.yaml;
 
 -- Upload new semantic model
--- NOTE: Update the file path to match your local directory
-PUT file://../../semantic_models/customer_analytics.yaml
+-- NOTE: Run this from the project root directory
+PUT file:///Users/jpurrutia/projects/snowflake-panel-demo/semantic_models/customer_analytics.yaml
     @SEMANTIC_STAGE
     AUTO_COMPRESS=FALSE
     OVERWRITE=TRUE;
