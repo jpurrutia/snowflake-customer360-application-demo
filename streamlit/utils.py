@@ -22,6 +22,7 @@ ACRONYM_MAPPING = {
     'ctr': 'Click Through Rate',
     'num': 'Number',
     'qty': 'Quantity',
+    'txn': 'Transaction',
 }
 
 
