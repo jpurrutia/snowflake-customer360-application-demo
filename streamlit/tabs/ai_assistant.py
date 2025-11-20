@@ -643,7 +643,7 @@ def render(execute_query, conn):
         "Enter your question:",
         value=default_question,
         height=100,
-        placeholder="e.g., Which customers spent more than $10,000 in the last 90 days?"
+        placeholder="e.g., How many customers are in each segment?"
     )
 
     col1, col2, col3 = st.columns([1, 1, 4])

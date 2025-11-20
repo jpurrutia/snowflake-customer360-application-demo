@@ -52,10 +52,28 @@ setup: install-uv
 	@echo "  source .venv/bin/activate  (Linux/macOS)"
 	@echo "  .venv\\Scripts\\activate     (Windows)"
 
-# Run tests
+# Run tests (unit tests only by default - no Snowflake connection needed)
 test:
-	@echo "Running pytest test suite..."
+	@echo "Running unit tests (no Snowflake connection required)..."
+	uv run pytest tests/unit/ -v --ignore=tests/unit/test_sql_syntax.py --ignore=tests/unit/test_transaction_sql_syntax.py --ignore=tests/unit/test_project_structure.py
+
+# Run all tests including integration tests (requires .env with Snowflake credentials)
+test-all:
+	@echo "Running all tests (unit + integration)..."
+	@if [ ! -f .env ]; then \
+		echo "ERROR: .env file not found. Copy .env.example and configure Snowflake credentials."; \
+		exit 1; \
+	fi
 	uv run pytest tests/ -v
+
+# Run only integration tests (requires Snowflake connection)
+test-integration:
+	@echo "Running integration tests (requires Snowflake connection)..."
+	@if [ ! -f .env ]; then \
+		echo "ERROR: .env file not found. Copy .env.example and configure Snowflake credentials."; \
+		exit 1; \
+	fi
+	uv run pytest tests/integration/ -v
 
 # Run linting
 lint:
