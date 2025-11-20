@@ -279,7 +279,10 @@ tables:
           - risk score
           - churn score
           - retention risk score
-        description: ML-predicted churn risk score from 0 (low risk) to 100 (high risk). Higher scores indicate customers more likely to churn. Use this field directly.
+          - churn risk
+        description: |
+          ML-predicted churn risk score from 0 (low risk) to 100 (high risk). Higher scores indicate customers more likely to churn. Use this field directly.
+          When ordering: highest=DESC, lowest=ASC, descending=DESC, ascending=ASC, from highest to lowest=DESC, from lowest to highest=ASC
         expr: churn_risk_score
         data_type: NUMBER
         default_aggregation: avg
