@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 import os
 
-
+# cicd test
 # Page configuration
 st.set_page_config(
     page_title="SpendSight | Powered by Snowflake",
@@ -17,7 +17,8 @@ st.set_page_config(
 )
 
 # Custom CSS for accessible Snowflake theme (following Snowflake accessibility guidelines)
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* Snowflake Brand Colors - Accessible Palette */
     :root {
@@ -203,7 +204,9 @@ st.markdown("""
         color: var(--white);
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ============= CONNECTION MANAGEMENT =============
 
@@ -261,12 +264,15 @@ def execute_query(query, params=None):
 
 # ============= HEADER =============
 
-st.markdown("""
+st.markdown(
+    """
 <div style="padding: 1rem 0;">
     <h1 style="margin: 0; font-size: 2.5rem;">🔍 SpendSight</h1>
     <p style="color: var(--medium-gray); margin: 0.5rem 0 0 0; font-size: 1.1rem;">Powered by Snowflake Cortex AI · Post-Acquisition Credit Card Customer Intelligence · v2.0</p>
 </div>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ============= SIDEBAR NAVIGATION =============
 
@@ -282,10 +288,10 @@ with st.sidebar:
             "🤖 AI Assistant",
             "🔍 Customer Deep Dive",
             "👥 Segment Explorer",
-            "📢 Campaign Performance"
+            "📢 Campaign Performance",
         ],
         index=0,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
 
     st.markdown("---")
