@@ -8,9 +8,9 @@ import plotly.graph_objects as go
 
 # Compatibility shim for st.cache_data (for testing)
 # st.cache_data was introduced in Streamlit 1.18.0
-if not hasattr(st, 'cache_data'):
+if not hasattr(st, "cache_data"):
     # Fallback to st.cache for older versions or test environments
-    st.cache_data = getattr(st, 'cache', lambda **kwargs: lambda f: f)
+    st.cache_data = getattr(st, "cache", lambda **kwargs: lambda f: f)
 
 # PyDeck imports - DISABLED (trial account limitation)
 # 📋 To enable choropleth maps, see: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
@@ -18,6 +18,7 @@ if not hasattr(st, 'cache_data'):
 try:
     import pydeck as pdk
     import requests
+
     PYDECK_AVAILABLE = True
 except ImportError:
     PYDECK_AVAILABLE = False
@@ -60,7 +61,7 @@ SUGGESTED_QUESTIONS = {
         "Which Premium cardholders are at medium or high risk?",
         "Find customers with declining spend in the last 90 days",
         "Show high-value customers with low recent activity",
-    ]
+    ],
 }
 
 
@@ -78,9 +79,9 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
         return []
 
     # Analyze column types
-    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    date_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+    date_cols = df.select_dtypes(include=["datetime", "datetime64"]).columns.tolist()
 
     suggestions = []
 
@@ -89,45 +90,46 @@ def suggest_chart_type(df: pd.DataFrame) -> list:
         return []
 
     # Detect geographic columns
-    geo_keywords = ['state', 'country', 'city', 'region', 'zip', 'postal', 'county', 'province']
-    geo_cols = [col for col in categorical_cols
-                if any(keyword in col.lower() for keyword in geo_keywords)]
+    geo_keywords = ["state", "country", "city", "region", "zip", "postal", "county", "province"]
+    geo_cols = [
+        col for col in categorical_cols if any(keyword in col.lower() for keyword in geo_keywords)
+    ]
 
     # Geographic data - prioritize map visualizations
     if geo_cols and numeric_cols:
         # Bar chart works great for geographic data
-        suggestions.append('bar')
-        suggestions.append('pie')
+        suggestions.append("bar")
+        suggestions.append("pie")
         # 🗺️ Choropleth maps (requires paid Snowflake account + External Access)
         # 📋 To enable, follow guide: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
-        if PYDECK_AVAILABLE and any('state' in col.lower() for col in geo_cols):
-            suggestions.append('choropleth_usa')
+        if PYDECK_AVAILABLE and any("state" in col.lower() for col in geo_cols):
+            suggestions.append("choropleth_usa")
 
     # Time series data
     elif date_cols and numeric_cols:
-        suggestions.extend(['line', 'area'])
+        suggestions.extend(["line", "area"])
 
     # Categorical + Numeric (most common for business analytics)
     elif categorical_cols and numeric_cols and len(df) > 1:
-        suggestions.extend(['bar', 'pie'])
+        suggestions.extend(["bar", "pie"])
         if len(df) <= 20:  # Only for smaller datasets
-            suggestions.append('scatter')
+            suggestions.append("scatter")
 
     # Multiple numeric columns
     if len(numeric_cols) >= 2:
-        if 'scatter' not in suggestions:
-            suggestions.append('scatter')
-        if 'line' not in suggestions:
-            suggestions.append('line')
+        if "scatter" not in suggestions:
+            suggestions.append("scatter")
+        if "line" not in suggestions:
+            suggestions.append("line")
 
     # Single numeric column - distribution
     if len(numeric_cols) == 1 and len(df) > 10:
-        suggestions.append('histogram')
+        suggestions.append("histogram")
 
     # Hierarchical data (2+ categorical columns)
     if len(categorical_cols) >= 2 and numeric_cols:
-        if 'sunburst' not in suggestions:
-            suggestions.append('sunburst')
+        if "sunburst" not in suggestions:
+            suggestions.append("sunburst")
 
     # Remove duplicates while preserving order
     seen = set()
@@ -156,7 +158,9 @@ def fetch_us_states_geojson():
         return response.json()
     except Exception as e:
         st.error(f"Failed to load US states map data: {e}")
-        st.info("Check that External Access Integration is configured. See: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md")
+        st.info(
+            "Check that External Access Integration is configured. See: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md"
+        )
         return None
 
 
@@ -173,16 +177,16 @@ def render_chart(df: pd.DataFrame, chart_type: str):
         return
 
     # Analyze columns
-    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    date_cols = df.select_dtypes(include=['datetime', 'datetime64']).columns.tolist()
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
+    date_cols = df.select_dtypes(include=["datetime", "datetime64"]).columns.tolist()
 
     try:
-        if chart_type == 'choropleth_usa':
+        if chart_type == "choropleth_usa":
             # 🗺️ US State choropleth map using PyDeck
             # This code is ready but requires External Access Integration
             # 📋 Setup guide: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
-            geo_keywords = ['state']
+            geo_keywords = ["state"]
             state_col = None
             for col in df.columns:
                 if any(keyword in col.lower() for keyword in geo_keywords):
@@ -200,17 +204,56 @@ def render_chart(df: pd.DataFrame, chart_type: str):
 
                 # Standardize state names to abbreviations
                 state_abbrev_map = {
-                    'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
-                    'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
-                    'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
-                    'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
-                    'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
-                    'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH',
-                    'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC',
-                    'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA',
-                    'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', 'tennessee': 'TN',
-                    'texas': 'TX', 'utah': 'UT', 'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA',
-                    'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY'
+                    "alabama": "AL",
+                    "alaska": "AK",
+                    "arizona": "AZ",
+                    "arkansas": "AR",
+                    "california": "CA",
+                    "colorado": "CO",
+                    "connecticut": "CT",
+                    "delaware": "DE",
+                    "florida": "FL",
+                    "georgia": "GA",
+                    "hawaii": "HI",
+                    "idaho": "ID",
+                    "illinois": "IL",
+                    "indiana": "IN",
+                    "iowa": "IA",
+                    "kansas": "KS",
+                    "kentucky": "KY",
+                    "louisiana": "LA",
+                    "maine": "ME",
+                    "maryland": "MD",
+                    "massachusetts": "MA",
+                    "michigan": "MI",
+                    "minnesota": "MN",
+                    "mississippi": "MS",
+                    "missouri": "MO",
+                    "montana": "MT",
+                    "nebraska": "NE",
+                    "nevada": "NV",
+                    "new hampshire": "NH",
+                    "new jersey": "NJ",
+                    "new mexico": "NM",
+                    "new york": "NY",
+                    "north carolina": "NC",
+                    "north dakota": "ND",
+                    "ohio": "OH",
+                    "oklahoma": "OK",
+                    "oregon": "OR",
+                    "pennsylvania": "PA",
+                    "rhode island": "RI",
+                    "south carolina": "SC",
+                    "south dakota": "SD",
+                    "tennessee": "TN",
+                    "texas": "TX",
+                    "utah": "UT",
+                    "vermont": "VT",
+                    "virginia": "VA",
+                    "washington": "WA",
+                    "west virginia": "WV",
+                    "wisconsin": "WI",
+                    "wyoming": "WY",
                 }
 
                 # Normalize state names in DataFrame
@@ -223,19 +266,21 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                 min_val = plot_df[value_col].min()
                 max_val = plot_df[value_col].max()
                 value_range = max_val - min_val if max_val != min_val else 1
-                plot_df['normalized_value'] = (plot_df[value_col] - min_val) / value_range
+                plot_df["normalized_value"] = (plot_df[value_col] - min_val) / value_range
 
                 # Merge data into GeoJSON properties
-                for feature in geojson['features']:
-                    state_code = feature['properties'].get('STUSPS', '')  # State abbreviation
+                for feature in geojson["features"]:
+                    state_code = feature["properties"].get("STUSPS", "")  # State abbreviation
                     matching = plot_df[plot_df[state_col] == state_code]
 
                     if not matching.empty:
-                        feature['properties']['value'] = float(matching.iloc[0][value_col])
-                        feature['properties']['value_norm'] = float(matching.iloc[0]['normalized_value'])
+                        feature["properties"]["value"] = float(matching.iloc[0][value_col])
+                        feature["properties"]["value_norm"] = float(
+                            matching.iloc[0]["normalized_value"]
+                        )
                     else:
-                        feature['properties']['value'] = 0
-                        feature['properties']['value_norm'] = 0
+                        feature["properties"]["value"] = 0
+                        feature["properties"]["value_norm"] = 0
 
                 # Create color expression (green to yellow to red gradient based on value)
                 # Lower values = green, higher values = red
@@ -254,16 +299,12 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                     get_line_color=[255, 255, 255, 100],
                     get_line_width=1,
                     pickable=True,
-                    auto_highlight=True
+                    auto_highlight=True,
                 )
 
                 # Set view state (centered on US)
                 view_state = pdk.ViewState(
-                    latitude=37.8,
-                    longitude=-96,
-                    zoom=3.5,
-                    pitch=0,
-                    bearing=0
+                    latitude=37.8, longitude=-96, zoom=3.5, pitch=0, bearing=0
                 )
 
                 # Create tooltip
@@ -275,8 +316,8 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                         "color": "white",
                         "fontSize": "14px",
                         "padding": "8px",
-                        "borderRadius": "4px"
-                    }
+                        "borderRadius": "4px",
+                    },
                 }
 
                 # Create deck
@@ -284,7 +325,7 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                     layers=[layer],
                     initial_view_state=view_state,
                     tooltip=tooltip,
-                    map_style="mapbox://styles/mapbox/dark-v10"
+                    map_style="mapbox://styles/mapbox/dark-v10",
                 )
 
                 # Render map
@@ -293,54 +334,77 @@ def render_chart(df: pd.DataFrame, chart_type: str):
                 # Show legend
                 st.caption(f"🟢 Lower {formatted_col_name} → 🔴 Higher {formatted_col_name}")
             else:
-                st.warning(f"Choropleth map requires a state column and at least one numeric column. Found state_col={state_col}, numeric_cols={numeric_cols}")
+                st.warning(
+                    f"Choropleth map requires a state column and at least one numeric column. Found state_col={state_col}, numeric_cols={numeric_cols}"
+                )
 
-        elif chart_type == 'bar':
+        elif chart_type == "bar":
             # Use first categorical/date column as x, first numeric as y
-            x_col = categorical_cols[0] if categorical_cols else (date_cols[0] if date_cols else df.columns[0])
+            x_col = (
+                categorical_cols[0]
+                if categorical_cols
+                else (date_cols[0] if date_cols else df.columns[0])
+            )
             y_col = numeric_cols[0] if numeric_cols else df.columns[1]
             fig = px.bar(df, x=x_col, y=y_col, title=f"{y_col} by {x_col}")
             st.plotly_chart(fig, use_container_width=True)
 
-        elif chart_type == 'line':
-            x_col = date_cols[0] if date_cols else (categorical_cols[0] if categorical_cols else df.columns[0])
+        elif chart_type == "line":
+            x_col = (
+                date_cols[0]
+                if date_cols
+                else (categorical_cols[0] if categorical_cols else df.columns[0])
+            )
             y_col = numeric_cols[0] if numeric_cols else df.columns[1]
             fig = px.line(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
             st.plotly_chart(fig, use_container_width=True)
 
-        elif chart_type == 'area':
-            x_col = date_cols[0] if date_cols else (categorical_cols[0] if categorical_cols else df.columns[0])
+        elif chart_type == "area":
+            x_col = (
+                date_cols[0]
+                if date_cols
+                else (categorical_cols[0] if categorical_cols else df.columns[0])
+            )
             y_col = numeric_cols[0] if numeric_cols else df.columns[1]
             fig = px.area(df, x=x_col, y=y_col, title=f"{y_col} over {x_col}")
             st.plotly_chart(fig, use_container_width=True)
 
-        elif chart_type == 'pie':
+        elif chart_type == "pie":
             names_col = categorical_cols[0] if categorical_cols else df.columns[0]
             values_col = numeric_cols[0] if numeric_cols else df.columns[1]
-            fig = px.pie(df, names=names_col, values=values_col, title=f"{values_col} by {names_col}")
+            fig = px.pie(
+                df, names=names_col, values=values_col, title=f"{values_col} by {names_col}"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-        elif chart_type == 'scatter':
+        elif chart_type == "scatter":
             x_col = numeric_cols[0] if len(numeric_cols) >= 2 else df.columns[0]
             y_col = numeric_cols[1] if len(numeric_cols) >= 2 else numeric_cols[0]
             color_col = categorical_cols[0] if categorical_cols else None
             fig = px.scatter(df, x=x_col, y=y_col, color=color_col, title=f"{y_col} vs {x_col}")
             st.plotly_chart(fig, use_container_width=True)
 
-        elif chart_type == 'histogram':
+        elif chart_type == "histogram":
             col = numeric_cols[0] if numeric_cols else df.columns[0]
             fig = px.histogram(df, x=col, title=f"Distribution of {col}")
             st.plotly_chart(fig, use_container_width=True)
 
-        elif chart_type == 'sunburst':
+        elif chart_type == "sunburst":
             # Hierarchical visualization
             if len(categorical_cols) >= 2 and numeric_cols:
                 path_cols = categorical_cols[:2]
                 values_col = numeric_cols[0]
-                fig = px.sunburst(df, path=path_cols, values=values_col, title=f"{values_col} by {' > '.join(path_cols)}")
+                fig = px.sunburst(
+                    df,
+                    path=path_cols,
+                    values=values_col,
+                    title=f"{values_col} by {' > '.join(path_cols)}",
+                )
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("Sunburst chart requires at least 2 categorical columns and 1 numeric column")
+                st.warning(
+                    "Sunburst chart requires at least 2 categorical columns and 1 numeric column"
+                )
 
     except Exception as e:
         st.error(f"Error rendering {chart_type} chart: {e}")
@@ -362,7 +426,7 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
     question_lower = question.lower()
 
     # Map questions to SQL
-    if 'highest risk' in question_lower and 'churn' in question_lower:
+    if "highest risk" in question_lower and "churn" in question_lower:
         sql = """
             SELECT customer_id, full_name, email, customer_segment,
                    churn_risk_score, churn_risk_category
@@ -372,7 +436,7 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
             LIMIT 100
         """
 
-    elif 'customers in each segment' in question_lower:
+    elif "customers in each segment" in question_lower:
         sql = """
             SELECT customer_segment, COUNT(*) AS customer_count
             FROM GOLD.CUSTOMER_360_PROFILE
@@ -380,7 +444,7 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
             ORDER BY customer_count DESC
         """
 
-    elif 'lifetime value' in question_lower and 'segment' in question_lower:
+    elif "lifetime value" in question_lower and "segment" in question_lower:
         sql = """
             SELECT customer_segment,
                    AVG(lifetime_value) AS avg_ltv,
@@ -390,14 +454,18 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
             ORDER BY avg_ltv DESC
         """
 
-    elif 'total spending' in question_lower and '90 days' in question_lower:
+    elif "total spending" in question_lower and "90 days" in question_lower:
         sql = """
             SELECT SUM(spend_last_90_days) AS total_spend_90d,
                    COUNT(*) AS customer_count
             FROM GOLD.CUSTOMER_360_PROFILE
         """
 
-    elif 'premium' in question_lower and ('medium' in question_lower or 'high' in question_lower) and 'risk' in question_lower:
+    elif (
+        "premium" in question_lower
+        and ("medium" in question_lower or "high" in question_lower)
+        and "risk" in question_lower
+    ):
         sql = """
             SELECT customer_id, full_name, customer_segment,
                    card_type, churn_risk_category, lifetime_value
@@ -410,10 +478,10 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
 
     else:
         return {
-            'sql': None,
-            'results': None,
-            'suggestions': [],
-            'error': 'Question not recognized by mock. Try a suggested question or wait for Cortex Analyst integration.'
+            "sql": None,
+            "results": None,
+            "suggestions": [],
+            "error": "Question not recognized by mock. Try a suggested question or wait for Cortex Analyst integration.",
         }
 
     # Execute SQL
@@ -428,26 +496,16 @@ def call_cortex_analyst_mock(conn, question: str) -> dict:
         # Convert Decimal/numeric types to proper float/int for formatting
         # Snowflake returns Decimal objects which pandas infers as 'object' dtype
         for col in df.columns:
-            if df[col].dtype == 'object':
+            if df[col].dtype == "object":
                 try:
                     # Try to convert to numeric (handles Decimal, int, float strings)
-                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                    df[col] = pd.to_numeric(df[col], errors="ignore")
                 except:
                     pass  # Keep as-is if conversion fails
 
-        return {
-            'sql': sql,
-            'results': df,
-            'suggestions': [],
-            'error': None
-        }
+        return {"sql": sql, "results": df, "suggestions": [], "error": None}
     except Exception as e:
-        return {
-            'sql': sql,
-            'results': None,
-            'suggestions': [],
-            'error': str(e)
-        }
+        return {"sql": sql, "results": None, "suggestions": [], "error": str(e)}
 
 
 def call_cortex_analyst(conn, question: str, conversation_history: list = None) -> dict:
@@ -470,36 +528,36 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         messages = []
         if conversation_history:
             for item in conversation_history[-3:]:  # Last 3 exchanges for context
-                response = item.get('response', {})
+                response = item.get("response", {})
                 # Only add to history if the response was successful (to maintain role alternation)
-                if response and not response.get('error'):
+                if response and not response.get("error"):
                     # Add user question
-                    messages.append({
-                        "role": "user",
-                        "content": [{"type": "text", "text": item.get('question', '')}]
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": item.get("question", "")}],
+                        }
+                    )
                     # Add analyst response
-                    interpretation = response.get('interpretation') or "Generated SQL query"
-                    messages.append({
-                        "role": "analyst",
-                        "content": [{"type": "text", "text": interpretation}]
-                    })
+                    interpretation = response.get("interpretation") or "Generated SQL query"
+                    messages.append(
+                        {"role": "analyst", "content": [{"type": "text", "text": interpretation}]}
+                    )
 
         # Add current question
-        messages.append({
-            "role": "user",
-            "content": [{"type": "text", "text": question}]
-        })
+        messages.append({"role": "user", "content": [{"type": "text", "text": question}]})
 
         # Check if _snowflake module is available (only in Streamlit in Snowflake)
         if _snowflake is None:
-            st.warning("⚠️ Cortex Analyst requires Streamlit in Snowflake environment. Using mock implementation.")
+            st.warning(
+                "⚠️ Cortex Analyst requires Streamlit in Snowflake environment. Using mock implementation."
+            )
             return call_cortex_analyst_mock(conn, question)
 
         # Request payload
         request_body = {
             "messages": messages,
-            "semantic_model_file": "@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml"
+            "semantic_model_file": "@SEMANTIC_MODELS.DEFINITIONS.SEMANTIC_STAGE/customer_analytics.yaml",
         }
 
         # Use Snowflake's native API request function for Streamlit in Snowflake
@@ -518,7 +576,7 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         parsed_content = json.loads(resp["content"])
 
         # Extract request ID for debugging
-        request_id = parsed_content.get('request_id', 'unknown')
+        request_id = parsed_content.get("request_id", "unknown")
 
         # Check if the response is successful
         if resp["status"] >= 400:
@@ -528,16 +586,14 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
 
             # Log full response for debugging
             with st.expander("🔧 Debug Info"):
-                st.json({
-                    "status": resp["status"],
-                    "request_id": request_id,
-                    "response": parsed_content
-                })
+                st.json(
+                    {"status": resp["status"], "request_id": request_id, "response": parsed_content}
+                )
 
             return call_cortex_analyst_mock(conn, question)
 
         # Extract message content
-        message = parsed_content.get('message', {})
+        message = parsed_content.get("message", {})
 
         # Extract SQL, interpretation, and suggestions
         generated_sql = None
@@ -545,22 +601,22 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         suggestions = []
 
         # Try to find SQL, text, and suggestions in content blocks
-        content = message.get('content', [])
+        content = message.get("content", [])
         for item in content:
-            if item.get('type') == 'sql':
-                generated_sql = item.get('statement')
-            elif item.get('type') == 'text':
-                interpretation = item.get('text')
-            elif item.get('type') == 'suggestions':
-                suggestions = item.get('suggestions', [])
+            if item.get("type") == "sql":
+                generated_sql = item.get("statement")
+            elif item.get("type") == "text":
+                interpretation = item.get("text")
+            elif item.get("type") == "suggestions":
+                suggestions = item.get("suggestions", [])
 
         if not generated_sql:
             return {
-                'sql': None,
-                'results': None,
-                'interpretation': interpretation,
-                'suggestions': suggestions,
-                'error': 'Cortex Analyst did not generate SQL for this question'
+                "sql": None,
+                "results": None,
+                "interpretation": interpretation,
+                "suggestions": suggestions,
+                "error": "Cortex Analyst did not generate SQL for this question",
             }
 
         # Execute the generated SQL
@@ -574,19 +630,19 @@ def call_cortex_analyst(conn, question: str, conversation_history: list = None) 
         # Convert Decimal/numeric types to proper float/int for formatting
         # Snowflake returns Decimal objects which pandas infers as 'object' dtype
         for col in df.columns:
-            if df[col].dtype == 'object':
+            if df[col].dtype == "object":
                 try:
                     # Try to convert to numeric (handles Decimal, int, float strings)
-                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                    df[col] = pd.to_numeric(df[col], errors="ignore")
                 except:
                     pass  # Keep as-is if conversion fails
 
         return {
-            'sql': generated_sql,
-            'results': df,
-            'interpretation': interpretation,
-            'suggestions': suggestions,
-            'error': None
+            "sql": generated_sql,
+            "results": df,
+            "interpretation": interpretation,
+            "suggestions": suggestions,
+            "error": None,
         }
 
     except Exception as e:
@@ -616,10 +672,7 @@ def render(execute_query, conn):
     st.subheader("💡 Suggested Questions")
 
     # Category selector
-    selected_category = st.selectbox(
-        "Browse by category:",
-        list(SUGGESTED_QUESTIONS.keys())
-    )
+    selected_category = st.selectbox("Browse by category:", list(SUGGESTED_QUESTIONS.keys()))
 
     # Display suggested questions as clickable buttons
     st.markdown(f"**{selected_category}:**")
@@ -628,7 +681,7 @@ def render(execute_query, conn):
     for idx, question in enumerate(SUGGESTED_QUESTIONS[selected_category]):
         with cols[idx % 2]:
             if st.button(question, key=f"suggested_{selected_category}_{idx}"):
-                st.session_state['current_question'] = question
+                st.session_state["current_question"] = question
 
     st.markdown("---")
 
@@ -637,13 +690,13 @@ def render(execute_query, conn):
     st.subheader("❓ Ask Your Question")
 
     # Text input for custom question
-    default_question = st.session_state.get('current_question', '')
+    default_question = st.session_state.get("current_question", "")
 
     question = st.text_area(
         "Enter your question:",
         value=default_question,
         height=100,
-        placeholder="e.g., Which customers spent more than $10,000 in the last 90 days?"
+        placeholder="e.g., Which customers spent more than $10,000 in the last 90 days?",
     )
 
     col1, col2, col3 = st.columns([1, 1, 4])
@@ -655,8 +708,8 @@ def render(execute_query, conn):
         clear_button = st.button("🔄 Clear")
 
     if clear_button:
-        st.session_state['current_question'] = ''
-        st.session_state.pop('last_response', None)
+        st.session_state["current_question"] = ""
+        st.session_state.pop("last_response", None)
         st.rerun()
 
     # ========== QUERY EXECUTION ==========
@@ -664,69 +717,69 @@ def render(execute_query, conn):
     if ask_button and question:
         with st.spinner("🤔 Thinking..."):
             # Get conversation history for context
-            conversation_history = st.session_state.get('query_history', [])
+            conversation_history = st.session_state.get("query_history", [])
 
             # Call Cortex Analyst with conversation context
             response = call_cortex_analyst(conn, question, conversation_history)
 
-            st.session_state['last_response'] = response
-            st.session_state['last_question'] = question
+            st.session_state["last_response"] = response
+            st.session_state["last_question"] = question
 
             # Add to history
-            if 'query_history' not in st.session_state:
-                st.session_state['query_history'] = []
+            if "query_history" not in st.session_state:
+                st.session_state["query_history"] = []
 
-            st.session_state['query_history'].append({
-                'timestamp': datetime.now(),
-                'question': question,
-                'response': response
-            })
+            st.session_state["query_history"].append(
+                {"timestamp": datetime.now(), "question": question, "response": response}
+            )
 
     # ========== DISPLAY RESULTS ==========
 
-    if 'last_response' in st.session_state:
-        response = st.session_state['last_response']
-        question = st.session_state.get('last_question', '')
+    if "last_response" in st.session_state:
+        response = st.session_state["last_response"]
+        question = st.session_state.get("last_question", "")
 
         st.markdown("---")
         st.subheader("📊 Results")
 
-        if response['error']:
+        if response["error"]:
             st.error(f"❌ Error: {response['error']}")
 
-            st.info("""
+            st.info(
+                """
             **Troubleshooting Tips:**
             - Rephrase your question to be more specific
             - Use terms from the semantic model (segment, state, churn risk, etc.)
             - Try one of the suggested questions above
             - Ensure Cortex Analyst is enabled in your Snowflake account
-            """)
+            """
+            )
 
         else:
             # Display question
             st.markdown(f"**Question:** {question}")
 
             # Display AI interpretation if available
-            if response.get('interpretation'):
+            if response.get("interpretation"):
                 st.info(f"**AI Interpretation:** {response['interpretation']}")
 
             # Display suggestions from Cortex Analyst
-            suggestions = response.get('suggestions', [])
+            suggestions = response.get("suggestions", [])
             if suggestions:
                 st.markdown("**💡 Follow-up suggestions:**")
                 suggestion_cols = st.columns(min(len(suggestions), 3))
                 for idx, suggestion in enumerate(suggestions[:6]):  # Limit to 6 suggestions
                     with suggestion_cols[idx % 3]:
                         if st.button(suggestion, key=f"suggestion_{idx}"):
-                            st.session_state['current_question'] = suggestion
+                            st.session_state["current_question"] = suggestion
                             st.rerun()
 
             # Display generated SQL
             with st.expander("🔍 View Generated SQL", expanded=False):
-                st.code(response['sql'], language='sql')
+                st.code(response["sql"], language="sql")
 
             # Display results
-            df = response['results']
+            df = response["results"]
 
             if df is not None and not df.empty:
                 st.success(f"✅ Found {len(df)} results")
@@ -743,21 +796,44 @@ def render(execute_query, conn):
                                 formatted_col_name = format_column_name(col_name)
                                 # Check if column represents currency using comprehensive keyword matching
                                 col_lower = col_name.lower()
-                                is_currency = any(keyword in col_lower for keyword in [
-                                    'amount', 'amounts',
-                                    'value', 'values', 'valued',
-                                    'ltv', 'clv',
-                                    'spend', 'spending', 'spent', 'spends',
-                                    'revenue', 'revenues',
-                                    'cost', 'costs', 'costing',
-                                    'price', 'prices', 'priced', 'pricing',
-                                    'limit', 'limits',
-                                    'credit', 'credits',
-                                    'paid', 'payment', 'payments',
-                                    'balance', 'balances',
-                                    'total', 'totals',
-                                    'sum', 'sums'
-                                ])
+                                is_currency = any(
+                                    keyword in col_lower
+                                    for keyword in [
+                                        "amount",
+                                        "amounts",
+                                        "value",
+                                        "values",
+                                        "valued",
+                                        "ltv",
+                                        "clv",
+                                        "spend",
+                                        "spending",
+                                        "spent",
+                                        "spends",
+                                        "revenue",
+                                        "revenues",
+                                        "cost",
+                                        "costs",
+                                        "costing",
+                                        "price",
+                                        "prices",
+                                        "priced",
+                                        "pricing",
+                                        "limit",
+                                        "limits",
+                                        "credit",
+                                        "credits",
+                                        "paid",
+                                        "payment",
+                                        "payments",
+                                        "balance",
+                                        "balances",
+                                        "total",
+                                        "totals",
+                                        "sum",
+                                        "sums",
+                                    ]
+                                )
 
                                 if is_currency:
                                     st.metric(formatted_col_name, f"${value:,.0f}")
@@ -773,10 +849,7 @@ def render(execute_query, conn):
 
                     with view_col1:
                         view_mode = st.radio(
-                            "View Mode:",
-                            ["📊 Table", "📈 Chart"],
-                            horizontal=True,
-                            key="view_mode"
+                            "View Mode:", ["📊 Table", "📈 Chart"], horizontal=True, key="view_mode"
                         )
 
                     with view_col2:
@@ -784,14 +857,14 @@ def render(execute_query, conn):
                             # Chart type selector with friendly labels
                             def format_chart_label(chart_type):
                                 labels = {
-                                    'choropleth_usa': '🗺️ US Map (Choropleth)',
-                                    'bar': '📊 Bar Chart',
-                                    'line': '📈 Line Chart',
-                                    'area': '📉 Area Chart',
-                                    'pie': '🥧 Pie Chart',
-                                    'scatter': '⚫ Scatter Plot',
-                                    'histogram': '📊 Histogram',
-                                    'sunburst': '☀️ Sunburst'
+                                    "choropleth_usa": "🗺️ US Map (Choropleth)",
+                                    "bar": "📊 Bar Chart",
+                                    "line": "📈 Line Chart",
+                                    "area": "📉 Area Chart",
+                                    "pie": "🥧 Pie Chart",
+                                    "scatter": "⚫ Scatter Plot",
+                                    "histogram": "📊 Histogram",
+                                    "sunburst": "☀️ Sunburst",
                                 }
                                 return labels.get(chart_type, chart_type.title())
 
@@ -799,7 +872,7 @@ def render(execute_query, conn):
                                 "Chart Type:",
                                 chart_types,
                                 format_func=format_chart_label,
-                                key="chart_type_selector"
+                                key="chart_type_selector",
                             )
 
                     if view_mode == "📈 Chart":
@@ -820,7 +893,7 @@ def render(execute_query, conn):
                     label="📥 Download Results (CSV)",
                     data=csv_df.to_csv(index=False),
                     file_name=f"cortex_analyst_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
+                    mime="text/csv",
                 )
 
             else:
@@ -828,25 +901,27 @@ def render(execute_query, conn):
 
     # ========== QUERY HISTORY ==========
 
-    if st.session_state.get('query_history'):
+    if st.session_state.get("query_history"):
         st.markdown("---")
         st.subheader("📜 Query History")
 
-        history = st.session_state['query_history']
+        history = st.session_state["query_history"]
 
         # Display last 5 queries
         for idx, item in enumerate(reversed(history[-5:])):
-            with st.expander(f"{item['timestamp'].strftime('%H:%M:%S')} - {item['question'][:50]}..."):
+            with st.expander(
+                f"{item['timestamp'].strftime('%H:%M:%S')} - {item['question'][:50]}..."
+            ):
                 st.markdown(f"**Question:** {item['question']}")
 
-                if item['response']['error']:
+                if item["response"]["error"]:
                     st.error(f"Error: {item['response']['error']}")
                 else:
-                    st.code(item['response']['sql'], language='sql')
+                    st.code(item["response"]["sql"], language="sql")
 
-                    if item['response']['results'] is not None:
+                    if item["response"]["results"] is not None:
                         # Apply human-readable column names to history results
-                        history_df = format_dataframe_columns(item['response']['results'].copy())
+                        history_df = format_dataframe_columns(item["response"]["results"].copy())
                         st.dataframe(history_df, use_container_width=True)
 
     # ========== HELP SECTION ==========
@@ -854,7 +929,8 @@ def render(execute_query, conn):
     st.markdown("---")
 
     with st.expander("ℹ️ How to Use AI Assistant"):
-        st.markdown("""
+        st.markdown(
+            """
         **Tips for asking questions:**
 
         1. **Be specific:** Instead of "Show customers", try "Show customers in California with high churn risk"
@@ -874,4 +950,5 @@ def render(execute_query, conn):
         **Powered by Snowflake Cortex Analyst** - Real-time natural language to SQL using AI
 
         *Note: If Cortex Analyst is not available in your Snowflake account, the system will automatically fallback to a mock implementation with pre-defined queries.*
-        """)
+        """
+        )
