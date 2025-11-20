@@ -1,0 +1,31 @@
+# Security Guardrails for Claude Code
+
+## NEVER read these files without explicit user permission:
+- ~/.snowsql/config
+- ~/.aws/credentials
+- ~/.ssh/*
+- **/secrets.toml
+- **/.env
+- ~/.dbt/profiles.yml
+- **/credentials.json
+- **/*.pem
+- **/*.key
+
+## Before reading ANY configuration file that may contain credentials:
+Ask: "This file may contain credentials. Should I read it, or would you prefer to manually provide the information?"
+
+## NEVER write credentials directly to files:
+- If credentials are needed, suggest environment variables
+- Suggest user manually updates files with sensitive data
+- Use placeholder values like "YOUR_PASSWORD_HERE" or "REPLACE_WITH_YOUR_TOKEN"
+
+## If credentials are accidentally exposed:
+1. Immediately stop and warn the user
+2. Suggest rotating/changing the credential or appropriate secrete depending on context
+3. Do not reference, copy, or use the credential in any subsequent operations
+
+## Prefer secure alternatives:
+- SSO/browser authentication over passwords
+- Environment variables over hardcoded values
+- Secrets management tools over plain text configuration
+- User-managed credential files over AI-written ones

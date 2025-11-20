@@ -1,0 +1,46 @@
+Snowflake Documentations:
+
+AI & Cortex:
+https://docs.snowflake.com/en/guides-overview-ai-features
+
+Cortex REST API:
+https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-rest-api
+
+Cortext Analyst Semantic Model Spec:
+https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst/semantic-model-spec
+
+Cortex Analyst with Plotly Blog and GitHub:b
+https://sarathi-data-ml-cloud.medium.com/snowflake-cortex-analyst-plotly-a-seamless-way-to-visualize-data-2f56a2c74c9a
+  https://github.com/sarathi-aiml/Cortex-Analyst/tree/main?source=post_page-----2f56a2c74c9a---------------------------------------
+
+Cortex Analyst Tutorials and Demos:
+https://github.com/Snowflake-Labs/sfguide-getting-started-with-cortex-analyst/
+https://raw.githubusercontent.com/Snowflake-Labs/sfguide-getting-started-with-cortex-analyst/main/cortex_analyst_sis_demo_app.py
+https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst/tutorials/tutorial-1#step-4-clean-up
+https://github.com/Snowflake-Labs/sfguide-getting-started-with-cortex-analyst/blob/main/cortex_analyst_streaming_demo.py
+
+cross-region inference:
+https://docs.snowflake.com/en/user-guide/snowflake-cortex/cross-region-inference
+
+
+5 Most Important Snowflake Features for 2026:
+https://www.reddit.com/r/snowflake/comments/1ovyka3/do_you_know_what_the_5_most_important_snowflake/
+https://medium.com/@tom.bailey.courses/the-5-snowflake-features-that-will-define-2026-a1b720111a0b
+
+workspaces: https://docs.snowflake.com/en/user-guide/ui-snowsight/workspaces
+dbt projects: https://docs.snowflake.com/en/sql-reference/commands-dbt-projects-on-snowflake
+optima: https://docs.snowflake.com/en/user-guide/snowflake-optima
+openflow: https://docs.snowflake.com/en/user-guide/data-integration/openflow/about
+pandas hybrid execution: https://docs.snowflake.com/en/release-notes/clients-drivers/snowpark-python-2025#id11https://docs.snowflake.com/en/release-notes/clients-drivers/snowpark-python-2025#id11
+
+
+tutorial on how to set up dbt packages on Snowflake:
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#introduction
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#create-a-workspace-connected-to-your-git-repository
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#run-the-sql-commands-in-tasty-bytes-setup-sql-to-set-up-source-data
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#execute-the-dbt-deps-command-for-your-project
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#compile-the-dbt-project-view-the-dag-and-view-compiled-sql
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#run-the-dbt-dev-project-and-verify-the-materialized-snowflake-objects
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#push-your-file-updates-from-the-workspace-to-your-repository
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#deploy-the-dbt-project-object-from-the-workspace
+https://docs.snowflake.com/en/user-guide/tutorials/dbt-projects-on-snowflake-getting-started-tutorial#create-a-task-to-schedule-dbt-project-execution

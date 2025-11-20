@@ -1,0 +1,81 @@
+name: Test dbt Models
+
+# Run on pull requests and manual trigger
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dbt_customer_analytics/**'
+      - '.github/workflows/test-dbt.yml'
+
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dbt and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install dbt-snowflake>=1.7.0
+
+      - name: Configure dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cat <<EOF > ~/.dbt/profiles.yml
+          customer_analytics:
+            outputs:
+              ci:
+                type: snowflake
+                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+                user: ${{ secrets.SNOWFLAKE_USER }}
+                password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+                role: ${{ secrets.SNOWFLAKE_ROLE }}
+                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+                database: ${{ secrets.SNOWFLAKE_DATABASE }}
+                schema: ${{ secrets.SNOWFLAKE_SCHEMA }}
+                threads: 4
+            target: ci
+          EOF
+          chmod 0600 ~/.dbt/profiles.yml
+
+      - name: Debug dbt connection
+        run: |
+          cd dbt_customer_analytics
+          dbt debug --profiles-dir ~/.dbt
+
+      - name: Install dbt dependencies
+        run: |
+          cd dbt_customer_analytics
+          dbt deps
+
+      - name: Run dbt tests
+        run: |
+          cd dbt_customer_analytics
+          dbt test --profiles-dir ~/.dbt
+
+      - name: Test summary
+        if: success()
+        run: |
+          echo "✅ All dbt tests passed!"
+          echo "Data quality validations successful."
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ dbt tests failed. Check logs above for details."
+          echo "Common issues:"
+          echo "  - Data quality issues in Snowflake tables"
+          echo "  - Schema changes not reflected in models"
+          echo "  - Missing or incorrect test configurations"

@@ -122,4 +122,4 @@ temp/
 snowflake/setup/snowsql_commands.sh
 
 # Claude files
-.claude
+# .claude

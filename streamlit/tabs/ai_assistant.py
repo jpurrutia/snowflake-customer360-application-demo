@@ -6,6 +6,12 @@ from .utils import format_dataframe_columns, format_column_name
 import plotly.express as px
 import plotly.graph_objects as go
 
+# Compatibility shim for st.cache_data (for testing)
+# st.cache_data was introduced in Streamlit 1.18.0
+if not hasattr(st, 'cache_data'):
+    # Fallback to st.cache for older versions or test environments
+    st.cache_data = getattr(st, 'cache', lambda **kwargs: lambda f: f)
+
 # PyDeck imports - DISABLED (trial account limitation)
 # 📋 To enable choropleth maps, see: streamlit/docs/ENABLE_CHOROPLETH_MAPS.md
 # Uncomment these imports after setting up External Access Integration:
