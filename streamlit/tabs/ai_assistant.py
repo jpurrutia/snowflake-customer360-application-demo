@@ -45,7 +45,7 @@ SUGGESTED_QUESTIONS = {
     ],
     "Spending Trends": [
         "What is the total spending in the last 90 days?",
-        "Show spending trends in travel over last 6 months",
+        "How many customers are in each segment?",
         "Which customers increased spending the most?",
         "What is the average transaction value by card type?",
     ],
@@ -643,7 +643,7 @@ def render(execute_query, conn):
         "Enter your question:",
         value=default_question,
         height=100,
-        placeholder="e.g., How many customers are in each segment?"
+        placeholder="e.g., Which customers spent more than $10,000 in the last 90 days?"
     )
 
     col1, col2, col3 = st.columns([1, 1, 4])
